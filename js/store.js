@@ -139,11 +139,35 @@
   }
   function photoCached(exId) { return photoCache.get(exId) || null; }
   async function setPhoto(exId, dataUrl) {
-    await idbPut('photos', exId, { data: dataUrl, u: now() });
+    try { await idbPut('photos', exId, { data: dataUrl, u: now() }); }
+    catch (e) { console.warn('photo not persisted', e); }
     photoCache.set(exId, dataUrl);
     const m = metaFor(exId, true); m.photo = { u: now(), local: true }; m.u = now();
     save(); emit('photo', exId);
   }
+  /* ---------- profile pictures ----------
+     Kept in the same photo store under a prefixed key, so they are preloaded,
+     synced and backed up by exactly the same machinery as machine photos. */
+  const PKEY = id => 'prof-' + id;
+  function profilePhoto(id) { return photoCached(PKEY(id)); }
+  async function setProfilePhoto(id, dataUrl) {
+    /* the in-memory cache and the profile record matter more than persistence:
+       a blocked IndexedDB must not stop the rest of the save */
+    try { await idbPut('photos', PKEY(id), { data: dataUrl, u: now() }); }
+    catch (e) { console.warn('profile photo not persisted', e); }
+    photoCache.set(PKEY(id), dataUrl);
+    const p = profile(id);
+    if (p) { p.photo = { u: now(), local: true }; p.u = now(); }
+    save(); emit('photo', PKEY(id));
+  }
+  async function clearProfilePhoto(id) {
+    try { await idbDel('photos', PKEY(id)); } catch (e) { }
+    photoCache.delete(PKEY(id));
+    const p = profile(id);
+    if (p) { delete p.photo; p.u = now(); }
+    save(); emit('photo', PKEY(id));
+  }
+
   /* store a photo that came FROM sync — must not be re-flagged for upload */
   async function setPhotoQuiet(exId, dataUrl) {
     await idbPut('photos', exId, { data: dataUrl, u: now() });
@@ -512,6 +536,7 @@
     unit, toDisplay, toKg, fmtW, fmtVol, stepFor, settings, setSetting, device, setDevice,
     /* photos */
     getPhoto, photoCached, setPhoto, setPhotoQuiet, clearPhoto, preloadPhotos, fileToDataUrl,
+    profilePhoto, setProfilePhoto, clearProfilePhoto, profileKey: PKEY,
     /* io */
     exportJson, importJson,
     /* utils */

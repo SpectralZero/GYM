@@ -97,6 +97,32 @@ The token is stored **only on that phone** and is never written into the synced
 file. A dot on the sync icon shows the status; the app syncs on open, after you
 finish a workout, and when you tap the icon.
 
+### Why a new device starts empty
+
+Your log is stored **inside the browser on each device**. Your PC and your phone are
+two separate browsers, so a phone that has never synced opens blank — that is normal,
+nothing is lost. Sync is what connects them, and each device has to be told about it
+once. The pair code does that, and it works for **your own second device**, not just
+your friend's.
+
+### Adding a device (your phone, or your friend's)
+
+On the device that already has the data: **Settings → Add another device / invite your
+friend** → **Copy** or **Share**, and send yourself the code (WhatsApp to yourself,
+email, whatever).
+
+On the new device:
+
+- **Fresh install** — paste the code into *"Already using IronLog somewhere else?"* on
+  the welcome screen and tap **Restore from pair code**. Do this *instead of* typing
+  names, otherwise you end up with duplicate people.
+- **Already set up** — **Settings → Join with code** → paste → **Join**. Your existing
+  sets are merged in, not overwritten.
+
+If you already created profiles on the phone by mistake, either delete the extra person
+in **Settings → People**, or wipe that phone with
+**Settings → Erase all data on this phone** and restore from the code.
+
 ### Invite your friend
 
 On your phone: **Settings → Invite your friend (pair code)** → **Copy** or

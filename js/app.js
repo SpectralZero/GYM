@@ -11,7 +11,9 @@
     const p = Store.activeProfile();
     const av = $('#whoAv');
     if (p) {
-      av.textContent = p.emoji || (p.name || '?').charAt(0).toUpperCase();
+      const photo = Store.profilePhoto(p.id);
+      if (photo) { av.innerHTML = `<img src="${photo}" alt="">`; av.classList.add('has-img'); }
+      else { av.textContent = p.emoji || (p.name || '?').charAt(0).toUpperCase(); av.classList.remove('has-img'); }
       av.style.background = UI.colorOf(p);
       av.classList.toggle('p2', p.color === 'orange');
       $('#whoName').textContent = p.name;
@@ -87,7 +89,19 @@
         <div class="field"><label>Friend's name <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(you can add them later)</span></label><input id="obB" placeholder="e.g. Omar" autocomplete="off" enterkeyhint="done"></div>
         <button class="btn btn-primary btn-wide btn-lg" id="obGo" style="margin-top:6px">Start lifting</button>
       </div>
-      <p class="dim" style="text-align:center;margin-top:18px">Everything is stored on your phone. Turn on GitHub sync later to share with your friend.</p>
+
+      <div class="ob-card">
+        <h3><span class="ob-n" style="background:var(--surface-3)">${icon('share', 14)}</span> Already using IronLog somewhere else?</h3>
+        <p class="dim" style="margin-bottom:12px">Set it up on your PC or another phone already? Don't start over — paste the
+        pair code from that device (<b>Settings → Add another device</b>) and your whole history comes across.</p>
+        <div class="field"><textarea id="obCode" placeholder="paste pair code here" autocapitalize="none" spellcheck="false"
+          style="font-family:ui-monospace,monospace;font-size:12px;min-height:84px"></textarea></div>
+        <button class="btn btn-wide" id="obJoin">Restore from pair code</button>
+        <div id="obMsg" class="dim" style="margin-top:10px"></div>
+      </div>
+
+      <p class="dim" style="text-align:center;margin-top:18px">Everything is stored on this device. Each phone keeps its own copy
+      until you connect them with GitHub sync.</p>
     </div>`;
 
     $('#obGo', el).onclick = () => {
@@ -101,6 +115,35 @@
       haptic([16, 40, 16]);
       start();
     };
+    /* second device: pull everything down instead of creating a fresh profile,
+       which is what caused duplicate people when joining after onboarding */
+    $('#obJoin', el).onclick = async () => {
+      const btn = $('#obJoin', el), msg = $('#obMsg', el);
+      const code = ($('#obCode', el).value || '').trim();
+      if (!code) { msg.textContent = 'Paste the code first.'; return; }
+      btn.disabled = true; btn.textContent = 'Connecting…';
+      msg.textContent = 'Reading the code…';
+      try {
+        const conf = Sync.readPairCode(code);
+        await Sync.testConnection(conf);
+        msg.textContent = 'Downloading your history…';
+        const r = await Sync.sync({ message: 'IronLog: another device joined' });
+        if (r.error) throw new Error(r.error);
+        if (!Store.profiles().length) {
+          throw new Error('Connected, but that repo has no data yet. Open the app on the first device, tap the sync icon, then try again.');
+        }
+        Store.setActive(Store.profiles()[0].id);
+        Store.setDevice('onboarded', true);
+        el.hidden = true;
+        haptic([16, 40, 16]);
+        start();
+        toast('Restored ' + Store.profiles().length + ' ' + (Store.profiles().length === 1 ? 'person' : 'people') + ' and ' + Store.sets().length + ' sets', 'good');
+      } catch (e) {
+        msg.innerHTML = '<span style="color:var(--bad)">' + esc(e.message) + '</span>';
+        btn.disabled = false; btn.textContent = 'Restore from pair code';
+      }
+    };
+
     $('#obA', el).focus();
   }
 

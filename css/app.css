@@ -114,6 +114,17 @@ svg{ display:block; }
   background:var(--accent); color:#fff; box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--accent-w);
 }
 .who-av.p2{ background:var(--p2); box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--p2-w); }
+.who-av.has-img{ padding:0; overflow:hidden; }
+.who-av img, .vs-av img{ width:100%; height:100%; object-fit:cover; border-radius:50%; display:block; }
+.vs-av.av-img{ overflow:hidden; background:var(--surface-2); }
+/* profile picture editor */
+.pf-av{
+  width:96px; height:96px; margin:0 auto 12px; border-radius:50%; overflow:hidden;
+  display:grid; place-content:center; font-size:40px; font-weight:800; color:#fff;
+  background:var(--accent); position:relative;
+}
+.pf-av img{ width:100%; height:100%; object-fit:cover; }
+.pf-btns{ display:flex; gap:8px; justify-content:center; }
 .who-txt{ display:flex; flex-direction:column; align-items:flex-start; min-width:0; }
 .who-name{ font-weight:700; font-size:15px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:38vw; }
 .who-sub{ font-size:11.5px; color:var(--muted); }

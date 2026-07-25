@@ -156,18 +156,23 @@
     if (!c || c.photos === false) return { up: 0, down: 0 };
     const doc = Store.getDoc();
     let up = 0, down = 0;
-    const ids = Object.keys(doc.meta || {}).filter(k => doc.meta[k] && doc.meta[k].photo);
-    for (const exId of ids) {
-      const m = doc.meta[exId];
+
+    /* machine photos live on doc.meta[exerciseId], profile pictures on the
+       profile record — same shape, so one loop handles both */
+    const targets = [];
+    Object.keys(doc.meta || {}).forEach(k => { if (doc.meta[k] && doc.meta[k].photo) targets.push({ key: k, rec: doc.meta[k] }); });
+    (doc.profiles || []).forEach(p => { if (p.photo) targets.push({ key: Store.profileKey(p.id), rec: p }); });
+
+    for (const { key, rec } of targets) {
       try {
-        if (m.photo.local) {                                  /* taken on this phone -> upload */
-          const sha = await pushPhoto(exId);
-          if (sha) { m.photo = { u: m.photo.u, sha }; m.u = Store.now(); up++; }
-        } else if (!Store.photoCached(exId)) {                  /* someone else's photo -> download */
-          const got = await Store.getPhoto(exId);
-          if (!got && await pullPhoto(exId)) down++;
+        if (rec.photo.local) {                                /* taken on this phone -> upload */
+          const sha = await pushPhoto(key);
+          if (sha) { rec.photo = { u: rec.photo.u, sha }; rec.u = Store.now(); up++; }
+        } else if (!Store.photoCached(key)) {                   /* someone else's photo -> download */
+          const got = await Store.getPhoto(key);
+          if (!got && await pullPhoto(key)) down++;
         }
-      } catch (e) { console.warn('photo sync skipped', exId, e.message); }
+      } catch (e) { console.warn('photo sync skipped', key, e.message); }
     }
     if (up) Store.save({ sync: false });
     return { up, down };

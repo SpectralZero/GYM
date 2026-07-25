@@ -831,7 +831,7 @@
           <button class="btn grow" id="stSync">${sy.on ? 'Change' : 'Set up'}</button>
           ${sy.on ? `<button class="btn btn-primary grow" id="stSyncNow">Sync now</button>` : `<button class="btn grow" id="stJoin">Join with code</button>`}
         </div>
-        ${sy.on ? `<button class="btn btn-ghost btn-wide" style="margin-top:9px" id="stPair">${icon('share', 18)} Invite your friend (pair code)</button>` : ''}
+        ${sy.on ? `<button class="btn btn-ghost btn-wide" style="margin-top:9px" id="stPair">${icon('share', 18)} Add another device / invite your friend</button>` : ''}
         ${sy.msg ? `<p class="dim" style="margin-top:10px">${esc(sy.msg)}</p>` : ''}
       </div>
 
@@ -911,23 +911,59 @@
   function profileSheet(id) {
     const p = id ? Store.profile(id) : null;
     const EMOJI = ['💪', '🔥', '🦍', '🐺', '🦅', '⚡', '🏆', '🥇', '😤', '🧊'];
+    const existingPhoto = p ? Store.profilePhoto(p.id) : null;
     UI.sheet(p ? 'Edit ' + p.name : 'Add person', `
+      <div class="field" style="text-align:center">
+        <div class="pf-av" id="pfAv"></div>
+        <div class="pf-btns">
+          <button class="btn btn-sm" id="pfPick">${icon('cam', 16)} ${existingPhoto ? 'Change picture' : 'Add picture'}</button>
+          <button class="btn btn-sm btn-ghost" id="pfRm" ${existingPhoto ? '' : 'hidden'}>Remove</button>
+        </div>
+        <input type="file" id="pfFile" accept="image/*" hidden>
+        <div class="hint" style="text-align:center">A picture syncs to your friend's phone too.</div>
+      </div>
       <div class="field"><label>Name</label><input id="pfName" value="${esc(p ? p.name : '')}" placeholder="Your name" autocomplete="off"></div>
       <div class="field"><label>Colour</label><div class="swatches" id="pfCol">${UI.COLOR_KEYS.map(k =>
       `<button class="sw ${(p ? p.color : 'blue') === k ? 'on' : ''}" data-c="${k}" style="background:${UI.COLORS[k]}" aria-label="${k}"></button>`).join('')}</div></div>
-      <div class="field"><label>Badge</label><div class="emojis" id="pfEm">${EMOJI.map(e =>
+      <div class="field"><label>Badge <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(used when there is no picture)</span></label><div class="emojis" id="pfEm">${EMOJI.map(e =>
         `<button class="em ${(p ? p.emoji : '💪') === e ? 'on' : ''}" data-e="${e}">${e}</button>`).join('')}</div></div>
       <button class="btn btn-primary btn-wide btn-lg" id="pfSave">${p ? 'Save' : 'Add person'}</button>
       ${p && Store.profiles().length > 1 ? `<button class="btn btn-danger btn-wide" style="margin-top:9px" id="pfDel">Delete ${esc(p.name)} and their history</button>` : ''}`,
       b => {
         let color = p ? p.color : 'blue', emoji = p ? p.emoji : '💪';
-        $$('#pfCol .sw', b).forEach(x => x.onclick = () => { color = x.dataset.c; $$('#pfCol .sw', b).forEach(y => y.classList.toggle('on', y === x)); haptic(8); });
-        $$('#pfEm .em', b).forEach(x => x.onclick = () => { emoji = x.dataset.e; $$('#pfEm .em', b).forEach(y => y.classList.toggle('on', y === x)); haptic(8); });
-        $('#pfSave', b).onclick = () => {
+        let newPhoto = null, dropPhoto = false;
+
+        function paintAv() {
+          const av = $('#pfAv', b);
+          const src = newPhoto || (dropPhoto ? null : existingPhoto);
+          av.style.background = UI.COLORS[color] || 'var(--accent)';
+          av.innerHTML = src ? `<img src="${src}" alt="">` : esc(emoji);
+          $('#pfRm', b).hidden = !src;
+        }
+        paintAv();
+
+        $$('#pfCol .sw', b).forEach(x => x.onclick = () => { color = x.dataset.c; $$('#pfCol .sw', b).forEach(y => y.classList.toggle('on', y === x)); haptic(8); paintAv(); });
+        $$('#pfEm .em', b).forEach(x => x.onclick = () => { emoji = x.dataset.e; $$('#pfEm .em', b).forEach(y => y.classList.toggle('on', y === x)); haptic(8); paintAv(); });
+
+        $('#pfPick', b).onclick = () => $('#pfFile', b).click();
+        $('#pfFile', b).onchange = async e => {
+          const f = e.target.files && e.target.files[0]; if (!f) return;
+          try {
+            newPhoto = await Store.fileToDataUrl(f, 480, 0.82);
+            dropPhoto = false; paintAv(); haptic(10);
+          } catch (err) { toast('Could not read that image', 'bad'); }
+        };
+        $('#pfRm', b).onclick = () => { newPhoto = null; dropPhoto = true; paintAv(); haptic(8); };
+
+        $('#pfSave', b).onclick = async () => {
           const name = $('#pfName', b).value.trim();
           if (!name) { toast('Name required', 'bad'); return; }
-          if (p) Store.updateProfile(p.id, { name, color, emoji });
-          else { const np = Store.addProfile(name, color, emoji); Store.setActive(np.id); }
+          const btn = $('#pfSave', b); btn.disabled = true;
+          let id;
+          if (p) { Store.updateProfile(p.id, { name, color, emoji }); id = p.id; }
+          else { const np = Store.addProfile(name, color, emoji); Store.setActive(np.id); id = np.id; }
+          if (newPhoto) await Store.setProfilePhoto(id, newPhoto);
+          else if (dropPhoto) await Store.clearProfilePhoto(id);
           UI.closeSheet(); Sync.nudge(); App.paintHeader(); UI.render(); toast('Saved', 'good');
         };
         const del = $('#pfDel', b);
@@ -1003,8 +1039,9 @@
   function pairSheet() {
     let code = '';
     try { code = Sync.makePairCode(); } catch (e) { toast(e.message, 'bad'); return; }
-    UI.sheet('Invite your friend', `
-      <p class="sub" style="margin-bottom:14px">Send this code to your friend. In their app they tap <b>Settings → Join with code</b> and paste it — then you both share the same history.</p>
+    UI.sheet('Add another device', `
+      <p class="sub" style="margin-bottom:14px">This code connects any device to the same history — <b>your own phone as well as your friend's</b>.
+      On the other device, paste it into the box on the welcome screen, or into <b>Settings → Join with code</b> if it is already set up.</p>
       <div class="field"><label>Pair code</label><textarea id="prCode" readonly style="font-family:ui-monospace,monospace;font-size:12px;min-height:110px">${esc(code)}</textarea></div>
       <button class="btn btn-primary btn-wide" id="prCopy">Copy code</button>
       <button class="btn btn-wide" style="margin-top:9px" id="prShare">${icon('share', 18)} Share…</button>

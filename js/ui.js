@@ -165,6 +165,10 @@
   /* ---------- avatar ---------- */
   function avatar(p, size) {
     size = size || 40;
+    const photo = Store.profilePhoto(p.id);
+    if (photo) {
+      return `<span class="vs-av av-img" style="width:${size}px;height:${size}px;box-shadow:0 0 0 2px ${colorOf(p)}"><img src="${photo}" alt=""></span>`;
+    }
     const initial = (p.emoji || (p.name || '?').charAt(0).toUpperCase());
     return `<span class="vs-av" style="background:${colorOf(p)};width:${size}px;height:${size}px;font-size:${Math.round(size * .42)}px">${esc(initial)}</span>`;
   }
