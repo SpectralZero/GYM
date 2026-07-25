@@ -4,7 +4,7 @@
    GitHub API traffic is never cached.
    Bump CACHE when you change any file.
    ========================================================= */
-const CACHE = 'ironlog-v4';
+const CACHE = 'ironlog-v5';
 const SHELL = [
   './',
   './index.html',

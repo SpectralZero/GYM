@@ -48,26 +48,75 @@
   function emit(evt, payload) { (listeners[evt] || []).forEach(fn => { try { fn(payload); } catch (e) { console.error(e); } }); (listeners['*'] || []).forEach(fn => fn(evt, payload)); }
 
   /* ---------- persistence ---------- */
-  let saveTimer = null;
+  let saveTimer = null, idbTimer = null, pendingWrite = false;
+  let storageFull = false, lastBytes = 0;
+
+  /* Serialising the whole log costs ~45ms once a few years of history exist,
+     and save() runs on every logged set. Coalesce writes into a trailing
+     250ms window so logging stays instant, and flush before the page goes
+     away so nothing is lost. */
+  function writeNow() {
+    clearTimeout(saveTimer); saveTimer = null; pendingWrite = false;
+    let json;
+    try { json = JSON.stringify(doc); } catch (e) { console.error('serialise failed', e); return; }
+    lastBytes = json.length;
+    try {
+      localStorage.setItem(DOC_KEY, json);
+      if (storageFull) { storageFull = false; emit('storage-ok'); }
+    } catch (e) {
+      /* Out of localStorage room. IndexedDB has far more, and the doc is
+         mirrored there, so keep going rather than losing the session — but
+         say so, because a silent failure here would look like data loss. */
+      storageFull = true;
+      console.error('localStorage full', e);
+      emit('storage-error', e);
+      idbPut('kv', 'doc', doc).catch(() => { });
+    }
+  }
+  function flush() { if (pendingWrite) writeNow(); }
+
   function save(opts) {
     doc.u = now();
-    try { localStorage.setItem(DOC_KEY, JSON.stringify(doc)); }
-    catch (e) { console.error('save failed', e); emit('storage-error', e); }
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { idbPut('kv', 'doc', doc).catch(() => { }); }, 800);
+    pendingWrite = true;
+    if (!saveTimer) saveTimer = setTimeout(writeNow, 250);
+    clearTimeout(idbTimer);
+    idbTimer = setTimeout(() => { idbPut('kv', 'doc', doc).catch(() => { }); }, 900);
     emit('change', doc);
     if (!opts || opts.sync !== false) emit('dirty');
+  }
+
+  /* how much room is left */
+  function storageInfo() {
+    let bytes = lastBytes;
+    if (!bytes) { try { bytes = (localStorage.getItem(DOC_KEY) || '').length; } catch (e) { } }
+    const setCount = doc.sets.filter(s => !s.d).length;
+    const perSet = setCount > 50 ? bytes / setCount : 156;      /* measured average */
+    const LIMIT = 5 * 1024 * 1024;
+    /* sets per year, from the last 90 days of real usage */
+    const since = now() - 90 * 864e5;
+    const recent = doc.sets.filter(s => !s.d && s.t >= since).length;
+    const perYear = recent > 20 ? recent * (365 / 90) : 0;
+    return {
+      bytes, setCount, perSet, limit: LIMIT, full: storageFull,
+      pct: Math.min(100, bytes / LIMIT * 100),
+      setsLeft: Math.max(0, Math.floor((LIMIT - bytes) / perSet)),
+      yearsLeft: perYear ? (LIMIT - bytes) / perSet / perYear : null,
+      perYear: Math.round(perYear)
+    };
   }
   function saveDevice() { try { localStorage.setItem(DEV_KEY, JSON.stringify(dev)); } catch (e) { } }
 
   async function load() {
+    /* Read BOTH copies and keep the newer one. If localStorage ever filled up,
+       its copy is frozen at that moment while IndexedDB kept receiving updates —
+       blindly preferring localStorage would then silently roll history back. */
+    let fromLs = null, fromIdb = null;
+    try { const raw = localStorage.getItem(DOC_KEY); if (raw) fromLs = JSON.parse(raw); }
+    catch (e) { console.error('localStorage copy unreadable', e); }
+    try { fromIdb = await idbGet('kv', 'doc'); } catch (e) { }
     try {
-      const raw = localStorage.getItem(DOC_KEY);
-      if (raw) doc = migrate(JSON.parse(raw));
-      else {
-        const backup = await idbGet('kv', 'doc').catch(() => null);   /* localStorage cleared but IDB survived */
-        if (backup) doc = migrate(backup);
-      }
+      const best = (fromLs && fromIdb) ? ((fromIdb.u || 0) > (fromLs.u || 0) ? fromIdb : fromLs) : (fromLs || fromIdb);
+      if (best) doc = migrate(best);
     } catch (e) { console.error('load failed, starting clean', e); }
     try { const rawD = localStorage.getItem(DEV_KEY); if (rawD) dev = Object.assign(blankDevice(), JSON.parse(rawD)); } catch (e) { }
     if (!doc.profiles) doc = blankDoc();
@@ -532,7 +581,7 @@
 
   global.Store = {
     /* lifecycle */
-    load, save, saveDevice, getDoc, replaceDoc, mergeDocs, on, off, emit,
+    load, save, flush, saveDevice, getDoc, replaceDoc, mergeDocs, on, off, emit, storageInfo,
     /* profiles */
     profiles, profile, activeProfile, activeId, otherProfile, addProfile, updateProfile, setActive,
     /* exercises */

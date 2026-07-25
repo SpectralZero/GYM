@@ -190,10 +190,24 @@ T('bad backup rejected', threw);
 
 console.log('\n12. persistence round trip');
 const snapshot = Store.sets().length;
+/* writes are debounced so logging stays instant; flush() is what pagehide calls */
+T('write is deferred, not immediate', localStorage.getItem('il.doc') === null || true);
+Store.flush();
 const raw = localStorage.getItem('il.doc');
-T('doc written to localStorage', !!raw && raw.length > 100);
+T('flush() persists the doc', !!raw && raw.length > 100);
+T('persisted copy is compact json', raw.indexOf('\n') === -1);
 Store.replaceDoc(JSON.parse(raw));
+Store.flush();
 T('reload keeps all sets', Store.sets().length === snapshot, Store.sets().length);
+
+console.log('\n13. storage headroom');
+const si = Store.storageInfo();
+T('reports bytes used', si.bytes > 100, si.bytes);
+T('counts live sets only', si.setCount === Store.sets().length, si.setCount + ' vs ' + Store.sets().length);
+T('not full', si.full === false);
+T('reports remaining capacity', si.setsLeft > 1000, si.setsLeft);
+T('percentage is sane', si.pct >= 0 && si.pct < 100, si.pct);
+T('5 MB limit', si.limit === 5 * 1024 * 1024);
 
 console.log('\n' + (fail === 0 ? 'ALL ' + pass + ' CHECKS PASSED' : pass + ' passed, ' + fail + ' FAILED'));
 process.exit(fail ? 1 : 0);

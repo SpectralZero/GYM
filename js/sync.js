@@ -95,11 +95,17 @@
 
   /* ---------- the document ---------- */
   async function pullRemote() {
-    const r = await req(filePath() + refQ(), { method: 'GET' });
+    /* The contents API only inlines `content` for files up to 1 MB — past that
+       the default media type errors outright. The "object" media type keeps
+       working to 100 MB: it returns the metadata (including the sha we need to
+       write back) with an empty content field and a download_url to fetch from. */
+    const r = await req(filePath() + refQ(), {
+      method: 'GET', headers: { Accept: 'application/vnd.github.object+json' }
+    });
     if (r.notFound) return { doc: null, sha: null };
     let text;
-    if (r.content) text = b64dec(r.content);
-    else if (r.download_url) text = await (await fetch(r.download_url)).text();   /* files > 1MB */
+    if (r.content && r.encoding !== 'none') text = b64dec(r.content);
+    else if (r.download_url) text = await (await fetch(r.download_url)).text();
     else return { doc: null, sha: r.sha || null };
     let parsed = null;
     try { parsed = JSON.parse(text); } catch (e) { throw new Error('The data file in the repo is not valid JSON.'); }
@@ -110,7 +116,9 @@
     const c = cfg();
     const body = {
       message: message || ('IronLog sync — ' + new Date().toISOString()),
-      content: b64enc(JSON.stringify({ app: 'ironlog', updated: new Date().toISOString(), doc: docToPush }, null, 1)),
+      /* compact, not indented: pretty-printing a log this size wastes 27% of
+         every upload and download for whitespace nobody reads */
+      content: b64enc(JSON.stringify({ app: 'ironlog', updated: new Date().toISOString(), doc: docToPush })),
       branch: c.branch || 'main'
     };
     if (sha) body.sha = sha;

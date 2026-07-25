@@ -279,9 +279,18 @@
       repaint = setTimeout(() => { paintHeader(); if ($('#sheet').hidden && $('#rest').hidden) UI.render(); }, 400);
     });
 
+    /* saves are debounced, so make sure one can't be lost on the way out */
+    global.addEventListener('pagehide', () => Store.flush());
+    global.addEventListener('beforeunload', () => Store.flush());
+
+    /* running out of room must never look like data loss */
+    Store.on('storage-error', () => {
+      toast('Phone storage is full — back up and free some space', 'bad');
+    });
+
     let lastAuto = 0;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') { Store.flush(); return; }
       paintRibbon();
       if (Sync.isOn() && Date.now() - lastAuto > 120000) { lastAuto = Date.now(); Sync.sync(); }
     });

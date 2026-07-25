@@ -835,6 +835,28 @@
         ${sy.msg ? `<p class="dim" style="margin-top:10px">${esc(sy.msg)}</p>` : ''}
       </div>
 
+      ${section('Storage')}
+      <div class="card">
+        ${(() => {
+        const si = Store.storageInfo();
+        const kb = si.bytes < 1048576 ? Math.round(si.bytes / 1024) + ' KB' : (si.bytes / 1048576).toFixed(2) + ' MB';
+        const tone = si.pct > 85 ? 'var(--bad)' : si.pct > 60 ? 'var(--warn)' : 'var(--good)';
+        return `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px">
+            <span class="switch-t" style="flex:none">${esc(kb)} of 5 MB used</span>
+            <span class="dim tnum">${si.pct < 1 ? '<1' : Math.round(si.pct)}%</span>
+          </div>
+          <div class="bal-t" style="display:block"><span class="bal-f" style="display:block;width:${Math.max(1.5, si.pct)}%;background:${tone}"></span></div>
+          <p class="dim" style="margin-top:10px">
+            ${si.setCount.toLocaleString()} sets stored, about ${Math.round(si.perSet)} bytes each.
+            ${si.yearsLeft != null
+            ? `At your current pace (${si.perYear.toLocaleString()} sets a year) there is room for roughly <b style="color:var(--text-2)">${si.yearsLeft > 20 ? '20+' : si.yearsLeft.toFixed(1)} more years</b>.`
+            : 'Keep logging for a few weeks and this will estimate how many years of room you have left.'}
+            ${Sync.isOn() ? ' Your GitHub repo holds the same data with far more room.' : ''}
+          </p>
+          ${si.full ? `<p style="color:var(--bad);margin-top:8px;font-size:13px"><b>Storage is full.</b> Download a backup now, then erase and restore to compact it.</p>` : ''}`;
+      })()}
+      </div>
+
       ${section('Backup')}
       <div class="card">
         <button class="btn btn-wide" id="stExport">Download backup file</button>
