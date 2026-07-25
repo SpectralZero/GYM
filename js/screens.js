@@ -31,7 +31,7 @@
       html += `<div class="hero ${p && p.color === 'orange' ? 'p2' : ''}">
         <div class="hero-k">Workout in progress</div>
         <div class="hero-v">${esc(UI.dur(Date.now() - live.start))}</div>
-        <div class="sub">${s.setCount} set${s.setCount === 1 ? '' : 's'} · ${s.exercises.length} machine${s.exercises.length === 1 ? '' : 's'} · ${esc(Store.fmtVol(s.volume))}${Store.unit()} moved</div>
+        <div class="sub">${s.setCount} set${s.setCount === 1 ? '' : 's'} · ${s.exercises.length} machine${s.exercises.length === 1 ? '' : 's'} · ${esc(Store.fmtVol(s.volume))} moved</div>
         <div class="hero-row"><button class="btn btn-primary grow" data-href="#/workout">${icon('play', 18)} Continue</button></div>
       </div>`;
     } else {
@@ -50,7 +50,7 @@
     /* tiles */
     const volDelta = lastWeek.volume ? Math.round((thisWeek.volume - lastWeek.volume) / lastWeek.volume * 100) : null;
     html += `<div style="margin-top:12px">` + tiles([
-      { label: 'This week', value: Store.fmtVol(thisWeek.volume), unit: Store.unit(), delta: volDelta == null ? '' : (volDelta > 0 ? '+' : '') + volDelta + '% vs last week', deltaDir: volDelta == null ? 'flat' : volDelta > 0 ? 'up' : volDelta < 0 ? 'down' : 'flat' },
+      { label: 'This week', value: Store.volParts(thisWeek.volume).value, unit: Store.volParts(thisWeek.volume).unit, delta: volDelta == null ? '' : (volDelta > 0 ? '+' : '') + volDelta + '% vs last week', deltaDir: volDelta == null ? 'flat' : volDelta > 0 ? 'up' : volDelta < 0 ? 'down' : 'flat' },
       { label: 'Sessions', value: String(t.workouts), delta: thisWeek.days + ' day' + (thisWeek.days === 1 ? '' : 's') + ' this week' },
       { label: 'Streak', value: String(st), unit: 'd' },
       { label: 'Machines used', value: String(t.machines) }
@@ -418,7 +418,7 @@
     if (!todaySets.length) { el.innerHTML = ''; return; }
     const vol = todaySets.reduce((a, s) => a + s.w * s.r, 0);
     const best = Store.bestSet(todaySets, ex);
-    el.innerHTML = section('Today · ' + todaySets.length + ' sets' + (vol ? ' · ' + Store.fmtVol(vol) + Store.unit() : '')) +
+    el.innerHTML = section('Today · ' + todaySets.length + ' sets' + (vol ? ' · ' + Store.fmtVol(vol) : '')) +
       '<div class="setlist">' + todaySets.map((s, i) => `
         <div class="setrow">
           <span class="setrow-n ${s.id === best.id ? 'pr' : ''}">${i + 1}</span>
@@ -478,7 +478,7 @@
       const vol = list.reduce((a, s) => a + s.w * s.r, 0);
       return `<div class="histday">
         <div class="histday-h"><span class="histday-d">${esc(UI.dateFull(list[0].t))}</span>
-          <span class="histday-m">${list.length} sets${vol ? ' · ' + esc(Store.fmtVol(vol)) + esc(Store.unit()) : ''}</span></div>
+          <span class="histday-m">${list.length} sets${vol ? ' · ' + esc(Store.fmtVol(vol)) : ''}</span></div>
         <div class="setpills">${list.map(s => `<span class="setpill ${s.id === best.id ? 'best' : ''}">${esc(setLabel(s, ex))}</span>`).join('')}</div>
       </div>`;
     }).join('') + '</div>' + (keys.length > shown.length ? `<p class="dim" style="text-align:center;margin-top:12px">+ ${keys.length - shown.length} older sessions</p>` : '');
@@ -547,7 +547,7 @@
           <button class="btn btn-sm" id="woRest">${icon('timer', 17)} Rest</button>
           <button class="btn btn-sm btn-good" id="woFinish">${icon('check', 17)} Finish</button>
         </div>
-        <div class="sub" style="margin-top:10px">${stats.setCount} sets · ${order.length} machines · ${esc(Store.fmtVol(stats.volume))}${esc(Store.unit())} total${stats.reps ? ' · ' + stats.reps + ' reps' : ''}</div>
+        <div class="sub" style="margin-top:10px">${stats.setCount} sets · ${order.length} machines · ${esc(Store.fmtVol(stats.volume))} total${stats.reps ? ' · ' + stats.reps + ' reps' : ''}</div>
       </div>
 
       ${section('Machines in this workout', { label: '+ Add', href: '#/machines' })}
@@ -585,7 +585,7 @@
       <span class="mrow-art" style="background:var(--accent-w);color:var(--accent)">${icon('dumb', 24)}</span>
       <span class="mrow-b"><span class="mrow-n">${esc(UI.dateFull(s.start))}${s.title ? ' · ' + esc(s.title) : ''}</span>
         <span class="mrow-s">${st.setCount} sets · ${esc(names.slice(0, 2).join(', '))}${names.length > 2 ? ' +' + (names.length - 2) : ''}</span></span>
-      <span class="mrow-r"><span class="mrow-w">${esc(Store.fmtVol(st.volume))}<small> ${esc(Store.unit())}</small></span></span>
+      <span class="mrow-r"><span class="mrow-w">${esc(Store.volParts(st.volume).value)}<small> ${esc(Store.volParts(st.volume).unit)}</small></span></span>
     </button>`;
   }
 
@@ -596,7 +596,7 @@
       <div class="tiles" style="margin-bottom:14px">
         <div class="tile"><div class="tile-l">Duration</div><div class="tile-v">${esc(UI.dur(Date.now() - live.start))}</div></div>
         <div class="tile"><div class="tile-l">Sets</div><div class="tile-v">${st.setCount}</div></div>
-        <div class="tile"><div class="tile-l">Volume</div><div class="tile-v">${esc(Store.fmtVol(st.volume))}<small>${esc(Store.unit())}</small></div></div>
+        <div class="tile"><div class="tile-l">Volume</div><div class="tile-v">${esc(Store.volParts(st.volume).value)}<small>${esc(Store.volParts(st.volume).unit)}</small></div></div>
         <div class="tile"><div class="tile-l">New PRs</div><div class="tile-v" style="color:${prs.length ? 'var(--good)' : 'inherit'}">${prs.length}</div></div>
       </div>
       ${prs.length ? `<p class="sub" style="margin-bottom:14px">${prs.map(s => esc((Store.exercise(s.x) || {}).name) + ' — ' + esc(setLabel(s, Store.exercise(s.x) || {}))).join('<br>')}</p>` : ''}
@@ -632,7 +632,7 @@
       ${s.note ? `<p class="sub" style="margin-top:10px">“${esc(s.note)}”</p>` : ''}
       <div style="margin-top:14px">${tiles([
       { label: 'Sets', value: String(st.setCount) },
-      { label: 'Volume', value: Store.fmtVol(st.volume), unit: Store.unit() },
+      { label: 'Volume', value: Store.volParts(st.volume).value, unit: Store.volParts(st.volume).unit },
       { label: 'Machines', value: String(st.exercises.length) }
     ])}</div>
       ${section('What you did')}
@@ -672,7 +672,7 @@
       <div style="margin-top:14px">${tiles([
       { label: 'Workouts', value: String(t.workouts) },
       { label: 'Total sets', value: String(t.sets) },
-      { label: 'Total lifted', value: Store.fmtVol(t.volume), unit: Store.unit() },
+      { label: 'Total lifted', value: Store.volParts(t.volume).value, unit: Store.volParts(t.volume).unit },
       { label: 'Training days', value: String(t.days) }
     ])}</div>
 
@@ -686,7 +686,7 @@
       <div class="chartcard"><div class="bal">${bal.map(b => `
         <div class="bal-r"><span class="bal-n">${esc(b.group.name)}</span>
         <span class="bal-t"><span class="bal-f" style="width:${Math.round(b.value / maxBal * 100)}%"></span></span>
-        <span class="bal-v">${esc(Store.fmtVol(b.value))}</span></div>`).join('')}</div></div>
+        <span class="bal-v">${esc(Store.fmtVolShort(b.value))}</span></div>`).join('')}</div></div>
 
       ${section('Bodyweight', { label: '+ Log', id: 'bwAdd' })}
       <div class="chartcard">${bw.length > 1 ? '<div id="pBw"></div>' : `<p class="dim" style="padding:6px 4px">${bw.length ? 'Latest: ' + esc(Store.fmtW(bw[bw.length - 1].kg)) : 'Track your bodyweight to see it against your lifts.'}</p>`}</div>
@@ -762,7 +762,7 @@
       </div>
 
       ${section('Totals')}
-      <div class="vs-row"><div class="vs-row-n"><span>Total weight lifted</span><em>${esc(Store.unit())}</em></div>
+      <div class="vs-row"><div class="vs-row-n"><span>Total weight lifted</span></div>
         ${Charts.vsBar({ value: tA.volume }, { value: tB.volume }, v => Store.fmtVol(v))}</div>
       <div class="vs-row"><div class="vs-row-n"><span>Workouts finished</span></div>
         ${Charts.vsBar({ value: tA.workouts }, { value: tB.workouts }, v => String(v))}</div>

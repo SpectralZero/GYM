@@ -517,11 +517,17 @@
     const s = (Math.abs(v - Math.round(v)) < 0.001) ? String(Math.round(v)) : String(round(v, 1));
     return withUnit === false ? s : s + ' ' + unit();
   }
-  function fmtVol(kg) {
-    const v = unit() === 'lb' ? kg / LB : kg;
-    if (v >= 1000) return round(v / 1000, v >= 10000 ? 0 : 1) + 't';
-    return Math.round(v) + '';
+  /* Volume gets big fast, so it switches to tonnes — which means the unit
+     changes with the value. Callers must take the unit from here rather than
+     appending Store.unit(), or you get "4.3t kg". */
+  function volParts(kg) {
+    const lb = unit() === 'lb';
+    const v = lb ? kg / LB : kg;
+    if (v >= 1000) return { value: String(round(v / 1000, v >= 10000 ? 0 : 1)), unit: lb ? 'klb' : 't' };
+    return { value: String(Math.round(v)), unit: lb ? 'lb' : 'kg' };
   }
+  const fmtVol = kg => { const p = volParts(kg); return p.value + ' ' + p.unit; };
+  const fmtVolShort = kg => { const p = volParts(kg); return p.value + p.unit; };
   function stepFor(ex) {
     const base = ex && ex.step ? ex.step : 2.5;
     return unit() === 'lb' ? (base === 2.5 ? 5 : base === 2 ? 5 : base === 1 ? 2.5 : base === 5 ? 10 : base) : base;
@@ -594,7 +600,7 @@
     /* bodyweight */
     addBw, bwSeries,
     /* units + settings */
-    unit, toDisplay, toKg, fmtW, fmtVol, stepFor, settings, setSetting, device, setDevice,
+    unit, toDisplay, toKg, fmtW, fmtVol, fmtVolShort, volParts, stepFor, settings, setSetting, device, setDevice,
     /* photos */
     getPhoto, photoCached, photoVersion, setPhoto, setPhotoQuiet, clearPhoto, preloadPhotos, fileToDataUrl,
     profilePhoto, setProfilePhoto, clearProfilePhoto, profileKey: PKEY,

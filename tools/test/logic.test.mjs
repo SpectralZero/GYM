@@ -200,6 +200,17 @@ Store.replaceDoc(JSON.parse(raw));
 Store.flush();
 T('reload keeps all sets', Store.sets().length === snapshot, Store.sets().length);
 
+console.log('\n12b. volume units switch with magnitude');
+T('under a tonne reads in kg', Store.fmtVol(430) === '430 kg', Store.fmtVol(430));
+T('over a tonne reads in t', Store.fmtVol(4300) === '4.3 t', Store.fmtVol(4300));
+T('big numbers drop the decimal', Store.fmtVol(43000) === '43 t', Store.fmtVol(43000));
+T('parts carry a matching unit', Store.volParts(4300).unit === 't' && Store.volParts(430).unit === 'kg');
+T('no double unit ever produced', !/t ?kg|kg ?kg/.test(Store.fmtVol(4300) + ' ' + Store.fmtVol(430)));
+Store.setSetting('unit', 'lb');
+T('lb: small volume in lb', Store.fmtVol(200).endsWith(' lb'), Store.fmtVol(200));
+T('lb: large volume in klb', Store.fmtVol(50000).endsWith(' klb'), Store.fmtVol(50000));
+Store.setSetting('unit', 'kg');
+
 console.log('\n13. storage headroom');
 const si = Store.storageInfo();
 T('reports bytes used', si.bytes > 100, si.bytes);
