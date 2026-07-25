@@ -31,6 +31,42 @@
   const shortDate = ts => new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
   /* ---------------------------------------------------------
+     Colour helpers. An SVG `fill` has no fallback mechanism, so
+     color-mix() would silently drop the mark on Safari below 16.2.
+     Resolve CSS variables and blend numerically instead — works
+     in every browser and costs nothing.
+  --------------------------------------------------------- */
+  let varCache = {}, varTheme = null;
+  function cssVar(name, fallback) {
+    const theme = document.documentElement.getAttribute('data-theme') || '';
+    if (theme !== varTheme) { varCache = {}; varTheme = theme; }
+    if (varCache[name] != null) return varCache[name];
+    let v = '';
+    try { v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); } catch (e) { }
+    return (varCache[name] = v || fallback);
+  }
+  function parseColor(c) {
+    c = String(c || '').trim();
+    if (c.charAt(0) === '#') {
+      if (c.length === 4) return [parseInt(c[1] + c[1], 16), parseInt(c[2] + c[2], 16), parseInt(c[3] + c[3], 16)];
+      if (c.length >= 7) return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+    }
+    const m = c.match(/rgba?\(([^)]+)\)/);
+    if (m) { const p = m[1].split(/[,\s/]+/).map(Number); return [p[0] || 0, p[1] || 0, p[2] || 0]; }
+    return null;
+  }
+  /* resolve a colour that may be a var(--x) reference into concrete rgb */
+  function resolve(c, fallback) {
+    const m = String(c || '').match(/var\(\s*(--[\w-]+)\s*\)/);
+    const raw = m ? cssVar(m[1], fallback) : c;
+    return parseColor(raw) || parseColor(fallback) || [57, 135, 229];
+  }
+  const rgb = a => 'rgb(' + Math.round(a[0]) + ',' + Math.round(a[1]) + ',' + Math.round(a[2]) + ')';
+  const blend = (a, b, t) => rgb([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
+  const SURFACE = () => resolve('var(--surface)', '#1a1a19');
+  const ACCENT = () => resolve('var(--accent)', '#3987e5');
+
+  /* ---------------------------------------------------------
      LINE — progress over time. One series = no legend box.
      opts: {series:[{name,color,points:[{t,y,meta}]}], height, yFmt, zeroBase, xFmt}
   --------------------------------------------------------- */
@@ -149,7 +185,9 @@
     const band = (W - padL - padR) / data.length;
     const bw = Math.min(24, band - 8);
     const py = v => padT + (1 - v / (hi || 1)) * (H - padT - padB);
-    const color = opts.color || 'var(--accent)';
+    const colorRgb = resolve(opts.color || 'var(--accent)', '#3987e5');
+    const color = rgb(colorRgb);
+    const dim = blend(colorRgb, SURFACE(), 0.54);   /* earlier weeks recede */
 
     let g = '';
     ticks.forEach(v => {
@@ -161,7 +199,7 @@
       const x = padL + band * i + (band - bw) / 2;
       const top = py(d.value), h = Math.max(d.value > 0 ? 3 : 0, py(0) - top);
       const isLast = i === data.length - 1;
-      const fill = isLast ? color : `color-mix(in srgb, ${color} 46%, var(--surface))`;
+      const fill = isLast ? color : dim;
       if (h > 0) bars += `<rect x="${R(x)}" y="${R(py(0) - h)}" width="${R(bw)}" height="${R(h)}" rx="4" fill="${fill}" data-i="${i}"/>`;
       if (data.length <= 10 && (isLast || i % 2 === 0)) {
         bars += `<text x="${R(x + bw / 2)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="var(--muted)">${esc(d.label)}</text>`;
@@ -194,8 +232,9 @@
   --------------------------------------------------------- */
   function heatmap(host, data) {
     const max = Math.max(...data.map(d => d.value), 1);
-    const steps = ['var(--surface-2)', 'color-mix(in srgb, var(--accent) 28%, var(--surface))',
-      'color-mix(in srgb, var(--accent) 52%, var(--surface))', 'color-mix(in srgb, var(--accent) 76%, var(--surface))', 'var(--accent)'];
+    const a = ACCENT(), s = SURFACE();
+    const steps = [rgb(resolve('var(--surface-2)', '#232322')),
+      blend(s, a, 0.28), blend(s, a, 0.52), blend(s, a, 0.76), rgb(a)];
     const bucket = v => v <= 0 ? 0 : Math.min(4, 1 + Math.floor((v / max) * 3.999));
     /* pad so the first column starts on a Monday */
     const firstDow = (new Date(data[0].ts).getDay() + 6) % 7;

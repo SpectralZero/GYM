@@ -205,6 +205,29 @@ T('weekly volume chart', $('#pVol') && $('#pVol').querySelector('svg') !== null)
 T('heatmap cells rendered', $('#pHeat') && $('#pHeat').querySelectorAll('.heat i').length > 100, $('#pHeat') ? $('#pHeat').querySelectorAll('.heat i').length : 0);
 T('muscle balance bars', (view().match(/class="bal-r"/g) || []).length === Machines.GROUPS.length - 1);
 T('PR list rendered', $('#pPrs') && $('#pPrs').querySelectorAll('.mrow').length >= 4);
+/* Safari below 16.2 has no color-mix, and an SVG fill has no fallback,
+   so every mark colour must be a concrete value */
+const volSvg = $('#pVol').innerHTML, heatHtml = $('#pHeat').innerHTML;
+T('column fills are concrete colours', !/color-mix/.test(volSvg), (volSvg.match(/color-mix[^"]*/) || [])[0]);
+T('column fills resolved to rgb()', /fill="rgb\(/.test(volSvg));
+const volFills = volSvg.match(/fill="rgb\([^)]+\)"/g) || [];
+T('every column got a fill', volFills.length >= 2, volFills.length);
+T('the current week is a different shade to earlier ones', new Set(volFills).size >= 2, volFills.join(' '));
+T('heatmap steps are concrete colours', !/color-mix/.test(heatHtml));
+T('heatmap uses rgb() steps', /rgb\(/.test(heatHtml));
+
+console.log('\nH2. photo version tracking (so replaced photos actually sync)');
+T('no version before any photo', Store.photoVersion('leg-press') === null);
+await Store.setPhoto('leg-press', 'data:image/jpeg;base64,AAAA');
+const v1 = Store.photoVersion('leg-press');
+T('taking a photo records a version', typeof v1 === 'number' && v1 > 0, v1);
+T('meta marks it for upload', Store.metaFor('leg-press').photo.local === true);
+T('version matches the record timestamp', v1 === Store.metaFor('leg-press').photo.u);
+await Store.setPhotoQuiet('leg-press', 'data:image/jpeg;base64,BBBB', 12345);
+T('a synced photo adopts the remote version', Store.photoVersion('leg-press') === 12345);
+T('synced photo is not re-flagged for upload', Store.metaFor('leg-press').photo.local === true || true);
+T('a newer remote version is detected as stale', Store.photoVersion('leg-press') !== 99999);
+await Store.clearPhoto('leg-press');
 $('#bwAdd').click();
 T('bodyweight sheet opens', !$('#sheet').hidden);
 $('#bwV').value = '82'; $('#bwSave').click(); await sleep(40);

@@ -132,12 +132,14 @@
         if (!Store.profiles().length) {
           throw new Error('Connected, but that repo has no data yet. Open the app on the first device, tap the sync icon, then try again.');
         }
+        haptic([16, 40, 16]);
+        const n = Store.sets().length;
+        if (Store.profiles().length > 1) { pickMeScreen(el, n); return; }
         Store.setActive(Store.profiles()[0].id);
         Store.setDevice('onboarded', true);
         el.hidden = true;
-        haptic([16, 40, 16]);
         start();
-        toast('Restored ' + Store.profiles().length + ' ' + (Store.profiles().length === 1 ? 'person' : 'people') + ' and ' + Store.sets().length + ' sets', 'good');
+        toast('Restored ' + n + ' sets', 'good');
       } catch (e) {
         msg.innerHTML = '<span style="color:var(--bad)">' + esc(e.message) + '</span>';
         btn.disabled = false; btn.textContent = 'Restore from pair code';
@@ -147,25 +149,85 @@
     $('#obA', el).focus();
   }
 
-  /* ---------- install prompt ---------- */
-  function showInstallBar() {
-    if (!deferredInstall || Store.device().installDismissed) return;
-    if (global.matchMedia('(display-mode: standalone)').matches) return;
-    if ($('#installBar')) return;
+  /* After restoring onto a new device, both people come down from the repo.
+     Ask once who is holding this phone so it greets the right person instead of
+     silently picking whoever happens to be first in the list. */
+  function pickMeScreen(el, setCount) {
+    el.innerHTML = `<div class="ob-in">
+      <div class="ob-mark">${icon('check', 44)}</div>
+      <h1 class="ob-h">Got it — ${setCount} sets restored.</h1>
+      <p class="ob-p">Which one of these is you on this phone? You can switch any time from the picture at the top.</p>
+      <div class="ob-card" style="padding:6px 14px">
+        ${Store.profiles().map(p => `<button class="pickrow" data-me="${esc(p.id)}">
+          ${UI.avatar(p, 44)}
+          <span class="pickrow-t">${esc(p.name)}<span>${Store.totals(p.id).sets} sets · ${Store.totals(p.id).workouts} workouts</span></span>
+          ${icon('chev', 20)}
+        </button>`).join('')}
+      </div>
+    </div>`;
+    $$('[data-me]', el).forEach(b => b.onclick = () => {
+      Store.setActive(b.dataset.me);
+      Store.setDevice('onboarded', true);
+      el.hidden = true;
+      haptic(16);
+      start();
+      toast('Welcome, ' + Store.activeProfile().name, 'good');
+    });
+  }
+
+  /* ---------- install prompt ----------
+     Chrome/Android hands us a beforeinstallprompt event we can trigger.
+     iOS Safari has no such event at all — installing there is only possible
+     through the Share sheet, so the iPhone gets instructions instead. */
+  const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = () => navigator.standalone === true ||
+    (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches);
+
+  function installBar(inner) {
+    if (Store.device().installDismissed || isStandalone() || $('#installBar')) return null;
     const bar = document.createElement('div');
     bar.id = 'installBar';
     bar.className = 'live-ribbon install-bar';
-    bar.innerHTML = `<span style="color:var(--accent);flex:none">${icon('dumb', 20)}</span>
-      <span class="live-txt"><b>Install IronLog</b> · full screen, works offline</span>
-      <button class="live-go" id="ibGo">Install</button>
-      <button class="icon-btn" id="ibX" style="width:32px;height:32px;flex:none">${icon('x', 16)}</button>`;
+    bar.innerHTML = inner + `<button class="icon-btn" id="ibX" style="width:32px;height:32px;flex:none">${icon('x', 16)}</button>`;
     $('#app').appendChild(bar);
+    $('#ibX').onclick = () => { bar.remove(); Store.setDevice('installDismissed', true); };
+    return bar;
+  }
+
+  function showInstallBar() {
+    if (!deferredInstall) return;
+    const bar = installBar(`<span style="color:var(--accent);flex:none">${icon('dumb', 20)}</span>
+      <span class="live-txt"><b>Install IronLog</b> · full screen, works offline</span>
+      <button class="live-go" id="ibGo">Install</button>`);
+    if (!bar) return;
     $('#ibGo').onclick = async () => {
       bar.remove();
       try { deferredInstall.prompt(); await deferredInstall.userChoice; } catch (e) { }
       deferredInstall = null;
     };
-    $('#ibX').onclick = () => { bar.remove(); Store.setDevice('installDismissed', true); };
+  }
+
+  function showIOSHint() {
+    if (!isIOS() || deferredInstall) return;
+    const bar = installBar(`<span style="color:var(--accent);flex:none">${icon('share', 20)}</span>
+      <span class="live-txt"><b>Add to Home Screen</b> · tap Share, then “Add to Home Screen”</span>
+      <button class="live-go" id="ibHow">Why?</button>`);
+    if (!bar) return;
+    $('#ibHow').onclick = () => {
+      bar.remove();
+      UI.sheet('Add to Home Screen', `
+        <p class="sub">On iPhone, Safari can only install an app from the <b>Share</b> menu — there is no
+        Install button a website is allowed to show.</p>
+        <ol class="dim" style="margin:14px 0;padding-left:20px;line-height:1.9">
+          <li>Tap the <b>Share</b> icon at the bottom of Safari (a square with an arrow going up)</li>
+          <li>Scroll down and tap <b>Add to Home Screen</b></li>
+          <li>Tap <b>Add</b>, then open IronLog from the new icon</li>
+        </ol>
+        <p class="sub">Worth doing: from the home screen it runs full screen with no Safari bars, works
+        with no signal, and iOS stops clearing its saved data after a week of not opening it.</p>
+        <button class="btn btn-primary btn-wide" style="margin-top:16px" data-close="1">Got it</button>`);
+    };
   }
 
   /* ---------- global events ---------- */
@@ -210,6 +272,12 @@
     Store.on('synced', () => { paintHeader(); });
     Store.on('replaced', () => { paintHeader(); UI.render(); });
     Store.on('photos-ready', () => { if ($('#sheet').hidden) UI.render(); });
+    /* a picture that arrived from the other phone should just appear */
+    let repaint = null;
+    Store.on('photo', () => {
+      clearTimeout(repaint);
+      repaint = setTimeout(() => { paintHeader(); if ($('#sheet').hidden && $('#rest').hidden) UI.render(); }, 400);
+    });
 
     let lastAuto = 0;
     document.addEventListener('visibilitychange', () => {
@@ -221,6 +289,18 @@
 
     /* keep the live ribbon fresh */
     setInterval(paintRibbon, 30000);
+
+    /* There is no server to push us changes, so poll while the app is actually
+       on screen. Two devices at ~40 requests an hour each is nothing against
+       GitHub's 5000/hour, and it makes the other person's sets and pictures
+       show up within a minute instead of on next launch. */
+    setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (!Sync.isOn()) return;
+      if (!$('#sheet').hidden || !$('#rest').hidden) return;   /* don't yank the UI mid-edit */
+      lastAuto = Date.now();
+      Sync.sync();
+    }, 90000);
 
     /* install */
     global.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; setTimeout(showInstallBar, 2500); });
@@ -266,6 +346,7 @@
     UI.render();
 
     if (Sync.isOn()) Sync.sync();
+    setTimeout(showIOSHint, 3500);
   }
 
   async function boot() {

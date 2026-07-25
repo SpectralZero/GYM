@@ -127,22 +127,30 @@
     return new Promise((res, rej) => { const tx = db.transaction(store, 'readonly'); const r = tx.objectStore(store).getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
   }
 
-  /* ---------- photos ---------- */
+  /* ---------- photos ----------
+     photoVer remembers WHICH version of a photo this device holds, taken from
+     the owning record's `u` timestamp. Without it, a photo that gets replaced
+     on the other phone would never be re-downloaded here, because "do I have
+     one?" would already be true. */
   const photoCache = new Map();
+  const photoVer = new Map();
   async function getPhoto(exId) {
     if (photoCache.has(exId)) return photoCache.get(exId);
     let v = null;
     try { v = await idbGet('photos', exId); } catch (e) { }
     const url = v && v.data ? v.data : null;
     photoCache.set(exId, url);
+    if (v && v.ver != null) photoVer.set(exId, v.ver);
     return url;
   }
   function photoCached(exId) { return photoCache.get(exId) || null; }
+  function photoVersion(key) { return photoVer.has(key) ? photoVer.get(key) : null; }
   async function setPhoto(exId, dataUrl) {
-    try { await idbPut('photos', exId, { data: dataUrl, u: now() }); }
+    const t = now();
+    try { await idbPut('photos', exId, { data: dataUrl, u: t, ver: t }); }
     catch (e) { console.warn('photo not persisted', e); }
-    photoCache.set(exId, dataUrl);
-    const m = metaFor(exId, true); m.photo = { u: now(), local: true }; m.u = now();
+    photoCache.set(exId, dataUrl); photoVer.set(exId, t);
+    const m = metaFor(exId, true); m.photo = { u: t, local: true }; m.u = t;
     save(); emit('photo', exId);
   }
   /* ---------- profile pictures ----------
@@ -153,11 +161,12 @@
   async function setProfilePhoto(id, dataUrl) {
     /* the in-memory cache and the profile record matter more than persistence:
        a blocked IndexedDB must not stop the rest of the save */
-    try { await idbPut('photos', PKEY(id), { data: dataUrl, u: now() }); }
+    const t = now();
+    try { await idbPut('photos', PKEY(id), { data: dataUrl, u: t, ver: t }); }
     catch (e) { console.warn('profile photo not persisted', e); }
-    photoCache.set(PKEY(id), dataUrl);
+    photoCache.set(PKEY(id), dataUrl); photoVer.set(PKEY(id), t);
     const p = profile(id);
-    if (p) { p.photo = { u: now(), local: true }; p.u = now(); }
+    if (p) { p.photo = { u: t, local: true }; p.u = t; }
     save(); emit('photo', PKEY(id));
   }
   async function clearProfilePhoto(id) {
@@ -168,10 +177,13 @@
     save(); emit('photo', PKEY(id));
   }
 
-  /* store a photo that came FROM sync — must not be re-flagged for upload */
-  async function setPhotoQuiet(exId, dataUrl) {
-    await idbPut('photos', exId, { data: dataUrl, u: now() });
+  /* store a photo that came FROM sync — must not be re-flagged for upload.
+     `ver` is the owning record's timestamp, so we know when it goes stale. */
+  async function setPhotoQuiet(exId, dataUrl, ver) {
+    try { await idbPut('photos', exId, { data: dataUrl, u: now(), ver: ver == null ? now() : ver }); }
+    catch (e) { console.warn('synced photo not persisted', e); }
     photoCache.set(exId, dataUrl);
+    photoVer.set(exId, ver == null ? now() : ver);
     emit('photo', exId);
   }
   async function clearPhoto(exId) {
@@ -535,7 +547,7 @@
     /* units + settings */
     unit, toDisplay, toKg, fmtW, fmtVol, stepFor, settings, setSetting, device, setDevice,
     /* photos */
-    getPhoto, photoCached, setPhoto, setPhotoQuiet, clearPhoto, preloadPhotos, fileToDataUrl,
+    getPhoto, photoCached, photoVersion, setPhoto, setPhotoQuiet, clearPhoto, preloadPhotos, fileToDataUrl,
     profilePhoto, setProfilePhoto, clearProfilePhoto, profileKey: PKEY,
     /* io */
     exportJson, importJson,

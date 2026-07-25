@@ -70,6 +70,33 @@ Android back button behaves normally. Samsung Internet works the same way
 
 First launch asks for your name and your friend's name. That's the whole setup.
 
+### On iPhone / iPad
+
+It works on Safari (iOS 16.4 or newer recommended), but **installing is manual** —
+Apple gives websites no Install button, so the app shows instructions instead:
+
+1. Open the link in **Safari** (not Chrome on iOS — it can't add web apps to the
+   home screen)
+2. Tap the **Share** icon (square with an arrow pointing up)
+3. Scroll down, tap **Add to Home Screen** → **Add**
+4. Launch it from the new icon
+
+Do install it rather than using it as a normal tab. Two reasons: it runs full
+screen, and Safari deletes a website's saved data after **7 days without a visit** —
+home-screen web apps are exempt from that. With GitHub sync on, even a wipe costs
+you nothing, since the log is in your repo.
+
+Two differences on iPhone, both harmless:
+
+- **No vibration.** iOS gives web pages no vibration API, so the rest timer and PR
+  celebrations are silent-but-visual. The countdown beep still works (unless the
+  ringer switch is on silent).
+- **The keyboard may nudge the bottom bar** while typing a weight. Tapping *Log set*
+  still works.
+
+Everything else — camera photos, charts, offline, sync, rest timer — behaves the
+same as on Android.
+
 ---
 
 ## Part 3 — Sync between two phones (optional but recommended)
@@ -137,6 +164,21 @@ paste → **Join**. Their existing sets are merged in, not overwritten.
 Both phones can log at the same time. Each set is a separate record with its own
 id and timestamp, so merges never lose a set — the newer edit wins on conflicts,
 and deletions propagate.
+
+### How fresh is the other person's data?
+
+There is no server pushing updates, so it is **near**-real-time, not live. Each app
+syncs:
+
+- when it opens
+- when you switch back to it (if it's been more than 2 minutes)
+- about 12 seconds after you log something
+- every 90 seconds while it is open on screen
+- instantly when you tap the sync icon
+
+So if your friend logs a set or changes their picture while you're both in the gym
+with the app open, you'll see it inside a minute — or immediately if you tap sync.
+Offline, everything queues locally and goes up the moment you have signal again.
 
 ---
 

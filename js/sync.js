@@ -136,7 +136,7 @@
     const r = await req(p, { method: 'PUT', body: JSON.stringify(body) });
     return (r.content && r.content.sha) || sha;
   }
-  async function pullPhoto(exId) {
+  async function pullPhoto(exId, ver) {
     const c = cfg();
     const p = `/repos/${c.owner}/${c.repo}/contents/${encodeURI(photoPath(exId))}`;
     const r = await req(p + refQ(), { method: 'GET' });
@@ -147,7 +147,7 @@
       b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
     }
     if (!b64) return false;
-    await Store.setPhotoQuiet(exId, 'data:image/jpeg;base64,' + String(b64).replace(/\s/g, ''));
+    await Store.setPhotoQuiet(exId, 'data:image/jpeg;base64,' + String(b64).replace(/\s/g, ''), ver);
     return true;
   }
 
@@ -168,9 +168,11 @@
         if (rec.photo.local) {                                /* taken on this phone -> upload */
           const sha = await pushPhoto(key);
           if (sha) { rec.photo = { u: rec.photo.u, sha }; rec.u = Store.now(); up++; }
-        } else if (!Store.photoCached(key)) {                   /* someone else's photo -> download */
-          const got = await Store.getPhoto(key);
-          if (!got && await pullPhoto(key)) down++;
+        } else {
+          /* Compare versions, not mere presence: the other phone may have
+             REPLACED a photo we already hold. */
+          await Store.getPhoto(key);                          /* warms cache + version from disk */
+          if (Store.photoVersion(key) !== rec.photo.u && await pullPhoto(key, rec.photo.u)) down++;
         }
       } catch (e) { console.warn('photo sync skipped', key, e.message); }
     }
