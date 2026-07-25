@@ -1,0 +1,17 @@
+{
+  "name": "ironlog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gym progress tracker for two people. Remembers the weight you lifted on every machine. Installable PWA, works offline, syncs through a private GitHub repo.",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "wger": "node tools/build-wger.mjs",
+    "test": "node tools/test/logic.test.mjs && node tools/test/ui.test.mjs",
+    "test:logic": "node tools/test/logic.test.mjs",
+    "test:ui": "node tools/test/ui.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

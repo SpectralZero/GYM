@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>IronLog — Gym Progress Tracker</title>
+<meta name="description" content="Remember every weight you lifted on every machine. Two-person gym progress tracker that works offline.">
+<meta name="theme-color" content="#0d0d0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IronLog">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ============ BOOT / SPLASH ============ -->
+<div id="splash" class="splash">
+  <div class="splash-mark" aria-hidden="true">
+    <svg viewBox="0 0 64 64" width="72" height="72"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M14 32h36"/><rect x="6" y="22" width="8" height="20" rx="3" fill="currentColor" stroke="none"/><rect x="50" y="22" width="8" height="20" rx="3" fill="currentColor" stroke="none"/><rect x="16" y="26" width="6" height="12" rx="2"/><rect x="42" y="26" width="6" height="12" rx="2"/></g></svg>
+  </div>
+  <div class="splash-name">IRONLOG</div>
+  <div class="splash-sub">loading your history…</div>
+</div>
+
+<!-- ============ ONBOARDING ============ -->
+<div id="onboarding" class="onboard" hidden></div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="app" hidden>
+
+  <header class="appbar" id="appbar">
+    <button class="who" id="whoBtn" aria-label="Switch person">
+      <span class="who-av" id="whoAv">A</span>
+      <span class="who-txt">
+        <span class="who-name" id="whoName">You</span>
+        <span class="who-sub" id="whoSub">tap to switch</span>
+      </span>
+      <svg class="who-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="appbar-actions">
+      <button class="icon-btn" id="syncBtn" aria-label="Sync data">
+        <span class="sync-dot" id="syncDot"></span>
+        <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.7M4 13a8 8 0 0 0 14.3 4.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 4.5V11h-6M4 19.5V13h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.7 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6h.08A1.7 1.7 0 0 0 10.1 3.1V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- live workout ribbon -->
+  <div class="live-ribbon" id="liveRibbon" hidden>
+    <span class="live-pulse"></span>
+    <span class="live-txt"><b id="liveName">Workout</b> <span id="liveMeta">·</span></span>
+    <button class="live-go" id="liveGo">Open</button>
+  </div>
+
+  <main id="view" class="view" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar" role="tablist">
+    <button class="tab" data-route="home" role="tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5M5.5 9.6V20h13V9.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="tab" data-route="machines" role="tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v8M8 6v12M16 6v12M20 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Machines</span>
+    </button>
+    <button class="tab tab-fab" data-route="workout" role="tab" aria-label="Workout">
+      <span class="fab" id="fab">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+      </span>
+    </button>
+    <button class="tab" data-route="progress" role="tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M8 16v-4M12.5 16V8M17 16v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Progress</span>
+    </button>
+    <button class="tab" data-route="compare" role="tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16.5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 19c0-2.8 2.2-4.6 5-4.6s5 1.8 5 4.6M14 14.6c2.4.2 4.5 1.9 4.5 4.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Versus</span>
+    </button>
+  </nav>
+
+  <!-- ============ OVERLAYS ============ -->
+  <div id="sheet" class="sheet-wrap" hidden>
+    <div class="sheet-scrim" data-close="1"></div>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <div class="sheet-grab" data-close="1"><i></i></div>
+      <div class="sheet-head"><h2 id="sheetTitle"></h2><button class="icon-btn sheet-x" data-close="1" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button></div>
+      <div class="sheet-body" id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div id="rest" class="rest" hidden>
+    <div class="rest-inner">
+      <div class="rest-label">REST</div>
+      <div class="rest-ring">
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <circle cx="100" cy="100" r="88" fill="none" stroke="var(--track)" stroke-width="10"/>
+          <circle id="restArc" cx="100" cy="100" r="88" fill="none" stroke="var(--accent)" stroke-width="10"
+                  stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="552.9" stroke-dashoffset="0"/>
+        </svg>
+        <div class="rest-time" id="restTime">1:30</div>
+      </div>
+      <div class="rest-next" id="restNext"></div>
+      <div class="rest-btns">
+        <button class="btn btn-ghost" id="restMinus">−15s</button>
+        <button class="btn btn-ghost" id="restPlus">+15s</button>
+      </div>
+      <button class="btn btn-primary btn-wide" id="restSkip">Skip rest</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="prBurst" class="pr-burst" hidden><div class="pr-card"><div class="pr-big">NEW PR</div><div class="pr-txt" id="prTxt"></div></div></div>
+</div>
+
+<script src="js/machines.js"></script>
+<script src="js/wger.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

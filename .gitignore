@@ -1,0 +1,11 @@
+# local Claude Code settings
+.claude/settings.local.json
+
+# screenshot / preview scaffolding (generated, never deployed)
+_preview.html
+_frame.html
+_metrics.html
+
+# node
+node_modules/
+package-lock.json
