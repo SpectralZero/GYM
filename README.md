@@ -34,26 +34,24 @@ GitHub Pages needs the **app repo to be public** on a free account. That's fine 
 it only contains code, never your training data. Your data goes in a *separate
 private* repo in Part 3.
 
-1. Create a new repo on GitHub called **`gym`** — public, empty (no README).
+The code is already committed and pushed to
+[SpectralZero/GYM](https://github.com/SpectralZero/GYM). All that's left is to
+switch Pages on:
 
-2. In this folder, push the code:
-
-   ```bash
-   git remote add origin https://github.com/YOUR-USERNAME/gym.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-3. On GitHub: **Settings → Pages**. Under *Build and deployment* set
-   **Source: Deploy from a branch**, **Branch: `main`**, folder **`/ (root)`**, then *Save*.
-
-4. Wait a minute, then open:
+1. Go to **https://github.com/SpectralZero/GYM/settings/pages**
+2. Under *Build and deployment* set **Source: Deploy from a branch**,
+   **Branch: `main`**, folder **`/ (root)`** → **Save**
+3. Wait a minute, then open:
 
    ```
-   https://YOUR-USERNAME.github.io/gym/
+   https://spectralzero.github.io/GYM/
    ```
 
-That URL is now permanent. Anything you push updates it.
+That URL is permanent. To ship a change later:
+
+```bash
+git add -A && git commit -m "..." && git push
+```
 
 ---
 
@@ -61,7 +59,7 @@ That URL is now permanent. Anything you push updates it.
 
 On the **Samsung S23 Ultra**, in **Chrome**:
 
-1. Open `https://YOUR-USERNAME.github.io/gym/`
+1. Open `https://spectralzero.github.io/GYM/`
 2. An **Install IronLog** bar appears at the bottom → tap **Install**.
    (No bar? Use the ⋮ menu → **Add to Home screen** → **Install**.)
 3. Launch it from the home screen icon.
