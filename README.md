@@ -18,6 +18,7 @@ No accounts, no server, no subscription.
 | **Machine numbers** | Give each machine the number written on it in your gym (`#12`). Shown on the card, and searchable. |
 | **Last time, front and centre** | Weight × reps from your last session, every set you did, what you did before that, your all-time best, and a green/red badge telling you if you went up or down. |
 | **One-tap repeat** | The weight box is pre-filled with last session's top set. Same weight? Just hit *Log set*. |
+| **Training days** | Home shows your last three training days as cards — date, the muscle groups you covered (Chest · Shoulders · Arms), and every machine you used with the weight and set count. Tap *All* for the full diary, month by month. |
 | **Personal records** | New best gets a celebration. All records listed on the Progress screen. |
 | **Workout mode** | Start a session, log sets, rest timer with vibration between sets, finish for a summary with duration, volume and new PRs. |
 | **Progress charts** | Top set / estimated 1RM / volume over time per machine, weekly volume, 17-week training calendar, muscle-group balance, bodyweight. |
@@ -229,12 +230,14 @@ both sides, *Replace* overwrites. Worth doing occasionally even with sync on.
 npm run serve      # http://localhost:8080 — also prints a LAN URL for your phone
 npm run icons      # regenerate icons/*.png
 npm run wger       # re-import exercise photos and data from wger.de
-npm test           # 66 data-layer checks + 132 UI checks (needs: npm install)
+npm test           # 81 data-layer checks + 182 UI checks (needs: npm install)
+node tools/dev-seed.mjs   # writes _preview.html with a fake 9-week history,
+                          # for eyeballing screens that need data
 ```
 
 `npm test` boots the real app in a headless DOM and drives every screen — logging
-sets, PR detection, unit switching, the two-device merge, every route and all 224
-machine screens. Run it after any change.
+sets, PR detection, unit switching, the two-device merge, the day-by-day diary,
+every route and all 224 machine screens. Run it after any change.
 
 Installing as an app and offline mode need HTTPS or `localhost`.
 
@@ -252,7 +255,7 @@ js/store.js               data model, stats, PR logic, two-device merge
 js/sync.js                GitHub API sync, pair codes
 js/charts.js              line / column / heatmap / versus charts (no libraries)
 js/ui.js                  router, sheets, toasts, rest timer, haptics
-js/screens.js             every screen
+js/screens.js             every screen (home, history, machines, workout, …)
 js/app.js                 bootstrap, onboarding, install prompt
 sw.js                     offline cache
 img/ex/                   210 reference photos (from wger.de)

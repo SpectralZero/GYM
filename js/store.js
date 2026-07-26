@@ -483,6 +483,40 @@
       return { ts: days[k][0].t, key: k, top: b.w, e1rm: round(score(b, ex), 1), volume: days[k].reduce((a, s) => a + s.w * s.r, 0), sets: days[k].length, reps: b.r };
     });
   }
+  /* ---------- training diary ----------
+     One entry per calendar day you trained, newest first: which machines,
+     how many sets on each, and which muscle groups the day covered. */
+  function dayLog(pid, limit) {
+    pid = pid || activeId();
+    const days = groupByDay(sets({ p: pid }));
+    const keys = Object.keys(days).sort().reverse();
+    const picked = limit ? keys.slice(0, limit) : keys;
+    return picked.map(k => {
+      const list = days[k];
+      const byEx = {};
+      list.forEach(s => (byEx[s.x] || (byEx[s.x] = [])).push(s));
+      const exercises = Object.keys(byEx).map(x => {
+        const ex = exercise(x);
+        if (!ex) return null;
+        return { ex, sets: byEx[x], count: byEx[x].length, best: bestSet(byEx[x], ex) };
+      }).filter(Boolean).sort((a, b) => b.count - a.count || a.ex.name.localeCompare(b.ex.name));
+      /* muscle groups, busiest first — "Chest · Arms" */
+      const tally = {};
+      exercises.forEach(e => { tally[e.ex.group] = (tally[e.ex.group] || 0) + e.count; });
+      const groups = Object.keys(tally).sort((a, b) => tally[b] - tally[a])
+        .map(g => (Machines.GROUPS.find(x => x.id === g) || {}).name).filter(Boolean);
+      const withSid = list.find(s => s.sid);
+      return {
+        key: k, ts: list[0].t, last: list[list.length - 1].t,
+        setCount: list.length,
+        reps: list.reduce((a, s) => a + s.r, 0),
+        volume: list.reduce((a, s) => a + s.w * s.r, 0),
+        exercises, groups, sid: withSid ? withSid.sid : null
+      };
+    });
+  }
+  function dayCount(pid) { return Object.keys(groupByDay(sets({ p: pid || activeId() }))).length; }
+
   function recentExercises(pid, limit = 6) {
     pid = pid || activeId();
     const seen = new Set(); const out = [];
@@ -597,6 +631,7 @@
     /* analysis */
     e1rm, score, isBetter, bestSet, lastPerformance, groupByDay, isPR, prList,
     streak, trainedDays, weekVolume, groupBalance, heatmapData, exerciseSeries, recentExercises, totals,
+    dayLog, dayCount,
     /* bodyweight */
     addBw, bwSeries,
     /* units + settings */

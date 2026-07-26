@@ -68,8 +68,13 @@
       });
     }
 
-    /* pick up where you left off */
-    if (recent.length) {
+    /* what you trained, day by day */
+    const diary = Store.dayLog(null, 3);
+    if (diary.length) {
+      const total = Store.dayCount();
+      html += section('Your training days', { label: total > 3 ? 'All ' + total : 'All', href: '#/history' });
+      html += diary.map(d => UI.dayCard(d, { max: 6 })).join('');
+    } else if (recent.length) {
       html += section('Last machines you used', { label: 'All', href: '#/machines' });
       html += '<div class="mgrid">' + recent.slice(0, 4).map(r => UI.machineCard(r.ex)).join('') + '</div>';
     } else {
@@ -100,6 +105,38 @@
         yFmt: v => v >= 1000 ? Math.round(v / 1000) + 'k' : String(v)
       });
     }
+  });
+
+  /* =========================================================
+     HISTORY — every training day, newest first
+  ========================================================= */
+  let histShown = 20;
+  UI.register('history', function (host) {
+    const total = Store.dayCount();
+    if (!total) {
+      host.innerHTML = `<h1 class="h1">Training days</h1>
+        <div class="card" style="margin-top:14px">${empty('Nothing logged yet', 'Every day you train gets its own card here, showing which machines you used and what you lifted.', 'dumb')}
+        <button class="btn btn-primary btn-wide" data-href="#/machines">Choose a machine</button></div>`;
+      return;
+    }
+    const days = Store.dayLog(null, histShown);
+    const t = Store.totals();
+
+    /* month separators, so scrolling back through a year stays readable */
+    let out = '', lastMonth = '';
+    days.forEach(d => {
+      const m = new Date(d.ts).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      if (m !== lastMonth) { out += `<div class="daysep">${esc(m)}</div>`; lastMonth = m; }
+      out += UI.dayCard(d);
+    });
+
+    host.innerHTML = `<h1 class="h1">Training days</h1>
+      <p class="dim" style="margin-top:6px">${total} day${total === 1 ? '' : 's'} logged · ${t.sets} sets · ${esc(Store.fmtVol(t.volume))} lifted in total</p>
+      ${out}
+      ${total > days.length ? `<button class="btn btn-wide" style="margin-top:14px" id="hMore">Show ${Math.min(20, total - days.length)} more days</button>` : `<p class="dim" style="text-align:center;margin-top:16px">That's everything — your first day was ${esc(UI.dateFull(days[days.length - 1].ts))}.</p>`}`;
+
+    const more = $('#hMore', host);
+    if (more) more.onclick = () => { histShown += 20; UI.render(); };
   });
 
   /* =========================================================
@@ -749,6 +786,46 @@
       if (Store.isBetter(r.score, o.score, r.ex)) winA++; else if (Store.isBetter(o.score, r.score, r.ex)) winB++;
     });
     const tA = Store.totals(A.id), tB = Store.totals(B.id);
+
+    /* A 0–0 scoreboard against someone with no data reads as "broken".
+       Say what is actually missing, and how to fix it. */
+    if (!tB.sets || !tA.sets) {
+      const who = !tB.sets ? B : A, other = !tB.sets ? A : B;
+      const sy = Sync.status();
+      host.innerHTML = `<h1 class="h1">Versus</h1>
+        <div class="vs-head" style="margin-top:14px">
+          <div class="vs-p">${UI.avatar(A, 56)}<span class="vs-n">${esc(A.name)}</span><span class="vs-sc">${tA.sets ? '–' : '0'}</span><span class="crown"></span></div>
+          <div class="vs-mid">LEADS</div>
+          <div class="vs-p">${UI.avatar(B, 56)}<span class="vs-n">${esc(B.name)}</span><span class="vs-sc">${tB.sets ? '–' : '0'}</span><span class="crown"></span></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          ${empty('Waiting for ' + who.name,
+        who.name + ' has no sets on this phone yet, so there is nothing to compare. As soon as ' +
+        (sy.on ? 'their phone syncs, both of your histories appear here automatically.'
+          : 'you connect the two phones with sync, both histories appear here automatically.'), 'dumb')}
+          ${sy.on
+          ? `<button class="btn btn-primary btn-wide" id="vsSync">Check for ${esc(who.name)}'s data now</button>
+               <p class="dim" style="margin-top:10px;text-align:center">${sy.last ? 'Last synced ' + esc(UI.timeAgo(sy.last)) : 'Not synced yet'}</p>`
+          : `<button class="btn btn-primary btn-wide" id="vsSetup">Set up sync between phones</button>
+               <p class="dim" style="margin-top:10px;text-align:center">Without sync each phone keeps its own history and they can never be compared.</p>`}
+        </div>
+        ${tA.sets ? section('Meanwhile — your own numbers') + tiles([
+          { label: 'Workouts', value: String(tA.workouts) },
+          { label: 'Sets', value: String(tA.sets) },
+          { label: 'Lifted', value: Store.volParts(tA.volume).value, unit: Store.volParts(tA.volume).unit },
+          { label: 'Machines', value: String(tA.machines) }
+        ]) : ''}`;
+      const sb = $('#vsSync', host);
+      if (sb) sb.onclick = async () => {
+        sb.disabled = true; sb.textContent = 'Checking…';
+        const r = await Sync.sync();
+        toast(r.error || 'Up to date', r.error ? 'bad' : 'good');
+        UI.render();
+      };
+      const su = $('#vsSetup', host);
+      if (su) su.onclick = syncSheet;
+      return;
+    }
 
     host.innerHTML = `<h1 class="h1">Versus</h1>
       <div class="vs-head" style="margin-top:14px">

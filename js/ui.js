@@ -162,6 +162,47 @@
     </button>`;
   }
 
+  /* ---------- day container ----------
+     One training day: date, muscle groups covered, and every machine used
+     with what you did on it. Tapping a machine opens that machine. */
+  function dayCard(d, opts) {
+    opts = opts || {};
+    const vp = Store.volParts(d.volume);
+    const when = dayHeading(d.ts);
+    return `<div class="dayc">
+      <div class="dayc-h">
+        <span class="dayc-d"><b>${esc(when)}</b><span>${d.exercises.length} machine${d.exercises.length === 1 ? '' : 's'} · ${d.setCount} set${d.setCount === 1 ? '' : 's'}${d.reps ? ' · ' + d.reps + ' reps' : ''}</span></span>
+        ${d.volume ? `<span class="dayc-v">${esc(vp.value)}<small> ${esc(vp.unit)}</small></span>` : ''}
+      </div>
+      ${d.groups.length ? `<div class="dayc-tags">${d.groups.map(g => `<span class="dayc-tag">${esc(g)}</span>`).join('')}</div>` : ''}
+      <div class="dayc-list">
+        ${d.exercises.slice(0, opts.max || 99).map(e => `
+          <button class="dayc-m" data-x="${esc(e.ex.id)}">
+            <span class="dayc-art">${artHtml(e.ex)}</span>
+            <span class="dayc-n">${esc(e.ex.name)}<span>${esc(setSummary(e))}</span></span>
+            <span class="dayc-c">${e.count}×</span>
+          </button>`).join('')}
+        ${opts.max && d.exercises.length > opts.max ? `<p class="dim" style="padding:6px 8px 2px">+ ${d.exercises.length - opts.max} more</p>` : ''}
+      </div>
+    </div>`;
+  }
+  /* "55 kg × 12 · best of 3" style line for one machine on one day */
+  function setSummary(e) {
+    const ex = e.ex, b = e.best;
+    if (ex.metric === 'time') return mmss(b.s || 0);
+    if (ex.metric === 'cardio') return Math.round((b.s || 0) / 60) + ' min';
+    if (ex.metric === 'reps' && !b.w) return b.r + ' reps';
+    return Store.fmtW(b.w, false) + ' ' + Store.unit() + ' × ' + b.r;
+  }
+  function dayHeading(ts) {
+    const days = Math.floor((Store.startOfDay(Date.now()) - Store.startOfDay(ts)) / 864e5);
+    const d = new Date(ts);
+    const label = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    if (days === 0) return 'Today · ' + label;
+    if (days === 1) return 'Yesterday · ' + label;
+    return label;
+  }
+
   /* ---------- avatar ---------- */
   function avatar(p, size) {
     size = size || 40;
@@ -266,7 +307,7 @@
     Store.setDevice('lastRoute', location.hash || '#/home');
   }
   function syncTabs(name) {
-    const map = { home: 'home', machines: 'machines', exercise: 'machines', progress: 'progress', versus: 'versus', workout: 'workout', session: 'progress' };
+    const map = { home: 'home', history: 'home', machines: 'machines', exercise: 'machines', progress: 'progress', versus: 'versus', workout: 'workout', session: 'progress' };
     const active = map[name] || '';
     $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.route === active && t.dataset.route !== 'workout'));
   }
@@ -316,7 +357,7 @@
     esc, $, $$, icon, ICONS, COLORS, COLOR_KEYS, colorOf,
     timeAgo, dateFull, clock, dur, mmss,
     haptic, beep, toast, prBurst,
-    artHtml, machineCard, machineRow, lastLine, avatar,
+    artHtml, machineCard, machineRow, lastLine, avatar, dayCard, dayHeading, setSummary,
     sheet, closeSheet, confirmSheet, rest,
     register, go, render, parseHash, currentRoute,
     stepper, bindSteppers, tiles, section, empty
