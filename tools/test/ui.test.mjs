@@ -137,7 +137,7 @@ T('delta value rendered', /\+20 kg/.test(view()), (view().match(/class="delta up
 T('chart rendered with 2+ sessions', view().indexOf('id="cPlot"') > -1);
 T('chart svg drawn', $('#cPlot') && $('#cPlot').querySelector('svg') !== null);
 T('chart has a line path', /stroke-width="2"/.test($('#cPlot').innerHTML));
-T('history section rendered', view().indexOf('History ·') > -1);
+T('history section rendered', /class="sec-t">History</.test(view()) && /sessions/.test(view()));
 T('chart mode switcher present', (view().match(/data-m="/g) || []).length >= 3);
 doc.querySelector('[data-m="e1rm"]').click();
 T('switching to Est 1RM redraws', $('#cPlot').querySelector('svg') !== null);
@@ -452,6 +452,27 @@ for (const tab of tabs) {
 await nav('/compare');
 T('legacy #/compare still reaches Versus', /Versus/.test(view()));
 T('legacy path lights the Versus tab', tabs.filter(t => t.classList.contains('on')).map(t => t.dataset.route).join() === 'versus');
+
+console.log('\nO3. formatting details found in the visual pass');
+await nav('/x/treadmill');
+T('cardio machine does not print CARDIO twice', (view().match(/class="xtag">Cardio</gi) || []).length <= 1, (view().match(/class="xtag">[^<]*</gi) || []).join(' '));
+/* the first-time copy needs an exercise with no history, so pick one per metric */
+const virgin = m => Store.allExercises().find(e => e.metric === m && !Store.sets({ x: e.id, p: Store.activeId() }).length);
+const vCardio = virgin('cardio'), vTime = virgin('time');
+if (vCardio) { await nav('/x/' + vCardio.id); T('cardio first-time copy talks about minutes', /Log your minutes/.test(view()), vCardio.id); }
+if (vTime) {
+  await nav('/x/' + vTime.id);
+  T('timed first-time copy talks about holding', /how long you held/.test(view()), vTime.id);
+  T('no "log the weight" on a timed exercise', !/Log the weight you used/.test(view()));
+}
+await nav('/x/leg-press');
+T('unit sits after the weight, not after the reps', !/\d+ × \d+ kg/.test(view()), (view().match(/\d+ × \d+ kg/) || [])[0]);
+/* the section title is uppercased by CSS, so a unit must not live inside it */
+const secTitles = Array.from(doc.querySelectorAll('#view .sec-t')).map(e => e.textContent);
+T('no section title contains a unit', !secTitles.some(s => /\b\d+(\.\d+)?\s*(kg|lb|t|klb)\b/i.test(s)), secTitles.join(' | '));
+T('volume moved to the un-uppercased note slot', doc.querySelectorAll('#view .sec-n').length >= 1);
+await nav('/machines');
+T('cards space the unit from the number', !/\d+kg ×/.test(view()), (view().match(/\d+kg ×/) || [])[0]);
 
 console.log('\nP. render hygiene across every route');
 const routes = ['/home', '/machines', '/machines/legs', '/x/leg-press', '/x/plank', '/x/treadmill', '/x/pull-up',

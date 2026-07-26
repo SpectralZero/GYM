@@ -131,7 +131,7 @@
     if (ex.metric === 'time') text = mmss(b.s || 0);
     else if (ex.metric === 'cardio') text = Math.round((b.s || 0) / 60) + ' min';
     else if (ex.metric === 'reps' && !b.w) text = b.r + ' reps';
-    else text = Store.fmtW(b.w, false) + Store.unit() + ' × ' + b.r;
+    else text = Store.fmtW(b.w, false) + ' ' + Store.unit() + ' × ' + b.r;
     return { text, none: false, ago: timeAgo(lp.date), lp };
   }
   function machineCard(ex) {
@@ -351,8 +351,14 @@
        <div class="tile-v">${esc(t.value)}${t.unit ? `<small>${esc(t.unit)}</small>` : ''}</div>
        ${t.delta ? `<div class="tile-d ${t.deltaDir || 'flat'}">${t.deltaDir === 'up' ? icon('up', 13) : t.deltaDir === 'down' ? icon('down', 13) : ''}${esc(t.delta)}</div>` : ''}</div>`).join('') + '</div>';
   }
+  /* action: {label, id?, href?} renders a tappable link on the right.
+     action: {note} renders muted text instead — the title is uppercased by CSS,
+     which would turn a unit like "3.3 t" into "3.3 T". */
   function section(title, action) {
-    return `<div class="sec"><span class="sec-t">${esc(title)}</span>${action ? `<button class="sec-a" ${action.id ? `id="${action.id}"` : ''} ${action.href ? `data-href="${esc(action.href)}"` : ''}>${esc(action.label)}</button>` : ''}</div>`;
+    const right = !action ? ''
+      : action.note != null ? `<span class="sec-n">${esc(action.note)}</span>`
+        : `<button class="sec-a" ${action.id ? `id="${action.id}"` : ''} ${action.href ? `data-href="${esc(action.href)}"` : ''}>${esc(action.label)}</button>`;
+    return `<div class="sec"><span class="sec-t">${esc(title)}</span>${right}</div>`;
   }
   function empty(title, sub, iconName) {
     return `<div class="empty">${icon(iconName || 'dumb', 34)}<b>${esc(title)}</b><span class="dim">${esc(sub || '')}</span></div>`;

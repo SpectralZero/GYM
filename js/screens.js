@@ -62,8 +62,8 @@
       recentPRs.forEach(r => {
         html += `<button class="mrow card-tap" data-x="${esc(r.ex.id)}">
           <span class="mrow-art">${UI.artHtml(r.ex)}</span>
-          <span class="mrow-b"><span class="mrow-n">${esc(r.ex.name)}</span><span class="mrow-s" style="color:var(--good)">personal best · ${esc(UI.timeAgo(r.set.t))}</span></span>
-          <span class="mrow-r"><span class="mrow-w">${esc(setLabel(r.set, r.ex))}</span></span>
+          <span class="mrow-b"><span class="mrow-n">${esc(r.ex.name)}</span><span class="mrow-s" style="color:var(--good)">personal best, set ${esc(UI.timeAgo(r.set.t))}</span></span>
+          <span class="mrow-r"><span class="mrow-w">${esc(setLabel(r.set, r.ex, true))}</span></span>
         </button>`;
       });
     }
@@ -231,12 +231,15 @@
   /* =========================================================
      EXERCISE / LOGGING  — the core screen
   ========================================================= */
-  const setLabel = (s, ex) => {
+  /* One place that formats a set. withUnit puts the unit where it belongs —
+     "55 kg × 12", not "55 × 12 kg", which is what callers appending
+     Store.unit() themselves used to produce. */
+  const setLabel = (s, ex, withUnit) => {
     if (!s) return '—';
     if (ex.metric === 'time') return UI.mmss(s.s || 0);
     if (ex.metric === 'cardio') return Math.round((s.s || 0) / 60) + ' min';
     if (ex.metric === 'reps' && !s.w) return s.r + ' reps';
-    return Store.fmtW(s.w, false) + ' × ' + s.r;
+    return Store.fmtW(s.w, false) + (withUnit ? ' ' + Store.unit() : '') + ' × ' + s.r;
   };
 
   UI.register('exercise', function (host, params) {
@@ -276,8 +279,12 @@
         </div>
       </div>`;
     } else {
+      const firstWhat = ex.metric === 'cardio' ? 'Log your minutes and the level you used.'
+        : ex.metric === 'time' ? 'Log how long you held it.'
+          : ex.metric === 'reps' ? 'Log your reps.'
+            : 'Log the weight you used.';
       lastCard = `<div class="lastcard"><div class="lastcard-k">First time on this machine</div>
-        <div class="sub" style="margin-top:8px">Log the weight you used. From now on this card shows exactly what you did last time, and whether you improved.</div></div>`;
+        <div class="sub" style="margin-top:8px">${esc(firstWhat)} From now on this card shows exactly what you did last time, and whether you improved.</div></div>`;
     }
 
     host.innerHTML = `
@@ -298,7 +305,7 @@
         </div>
         <div class="xtags">
           <span class="xtag">${esc(groupName)}</span>
-          <span class="xtag">${esc(ex.equip)}</span>
+          ${ex.equip.toLowerCase() === groupName.toLowerCase() ? '' : `<span class="xtag">${esc(ex.equip)}</span>`}
           ${ex.unilateral ? '<span class="xtag">per side</span>' : ''}
           ${ex.inverse ? '<span class="xtag">less = stronger</span>' : ''}
         </div>
@@ -455,11 +462,11 @@
     if (!todaySets.length) { el.innerHTML = ''; return; }
     const vol = todaySets.reduce((a, s) => a + s.w * s.r, 0);
     const best = Store.bestSet(todaySets, ex);
-    el.innerHTML = section('Today · ' + todaySets.length + ' sets' + (vol ? ' · ' + Store.fmtVol(vol) : '')) +
+    el.innerHTML = section('Today · ' + todaySets.length + ' sets', vol ? { note: Store.fmtVol(vol) + ' lifted' } : null) +
       '<div class="setlist">' + todaySets.map((s, i) => `
         <div class="setrow">
           <span class="setrow-n ${s.id === best.id ? 'pr' : ''}">${i + 1}</span>
-          <span class="setrow-v">${esc(setLabel(s, ex))} ${ex.metric === 'weight' ? `<small>${esc(Store.unit())}</small>` : ''}</span>
+          <span class="setrow-v">${esc(setLabel(s, ex, true))}</span>
           ${ex.metric === 'weight' ? `<span class="setrow-e">${esc(Store.fmtW(Store.e1rm(s.w, s.r), false))} e1RM</span>` : ''}
           <button class="setrow-x" data-del="${esc(s.id)}" aria-label="Delete set">${icon('trash', 17)}</button>
         </div>`).join('') + '</div>';
@@ -509,7 +516,7 @@
     const days = Store.groupByDay(all);
     const keys = Object.keys(days).sort().reverse();
     const shown = keys.slice(0, 12);
-    el.innerHTML = section('History · ' + keys.length + ' sessions') + '<div class="hist">' + shown.map(k => {
+    el.innerHTML = section('History', { note: keys.length + ' sessions' }) + '<div class="hist">' + shown.map(k => {
       const list = days[k];
       const best = Store.bestSet(list, ex);
       const vol = list.reduce((a, s) => a + s.w * s.r, 0);
@@ -598,7 +605,7 @@
       return `<div class="wo-ex">
         <button class="wo-ex-h" data-x="${esc(xid)}">
           <span class="wo-ex-art">${UI.artHtml(ex)}</span>
-          <span class="wo-ex-n">${esc(ex.name)}<span>best ${esc(setLabel(best, ex))}${ex.metric === 'weight' ? ' ' + esc(Store.unit()) : ''}</span></span>
+          <span class="wo-ex-n">${esc(ex.name)}<span>best ${esc(setLabel(best, ex, true))}</span></span>
           <span class="wo-ex-c">${list.length} set${list.length === 1 ? '' : 's'}</span>
         </button>
         <div class="wo-ex-sets">${list.map(s => `<span class="setpill ${s.id === best.id ? 'best' : ''}">${esc(setLabel(s, ex))}</span>`).join('')}</div>
@@ -620,7 +627,7 @@
     const names = st.exercises.map(x => (Store.exercise(x) || {}).name).filter(Boolean);
     return `<button class="mrow card-tap" data-href="#/session/${esc(s.id)}">
       <span class="mrow-art" style="background:var(--accent-w);color:var(--accent)">${icon('dumb', 24)}</span>
-      <span class="mrow-b"><span class="mrow-n">${esc(UI.dateFull(s.start))}${s.title ? ' · ' + esc(s.title) : ''}</span>
+      <span class="mrow-b"><span class="mrow-n">${esc(UI.dateFull(s.start))} <span style="font-weight:600;color:var(--muted)">${esc(UI.clock(s.start))}</span>${s.title ? ' · ' + esc(s.title) : ''}</span>
         <span class="mrow-s">${st.setCount} sets · ${esc(names.slice(0, 2).join(', '))}${names.length > 2 ? ' +' + (names.length - 2) : ''}</span></span>
       <span class="mrow-r"><span class="mrow-w">${esc(Store.volParts(st.volume).value)}<small> ${esc(Store.volParts(st.volume).unit)}</small></span></span>
     </button>`;
@@ -696,7 +703,9 @@
   UI.register('progress', function (host) {
     const t = Store.totals();
     if (!t.sets) {
-      host.innerHTML = `<h1 class="h1">Progress</h1>` + `<div class="card" style="margin-top:14px">${empty('No data yet', 'Log a few sets and your charts, records and training calendar appear here.', 'dumb')}</div>`;
+      host.innerHTML = `<h1 class="h1">Progress</h1>
+        <div class="card" style="margin-top:14px">${empty('No data yet', 'Log a few sets and your charts, records and training calendar appear here.', 'dumb')}
+        <button class="btn btn-primary btn-wide" data-href="#/machines">Choose a machine</button></div>`;
       return;
     }
     const wv = Store.weekVolume(null, 10);
@@ -785,7 +794,7 @@
         <span class="mrow-b"><span class="mrow-n">${esc(r.ex.name)}</span>
           <span class="mrow-s">${prMode === 'date' ? r.days + ' session' + (r.days === 1 ? '' : 's') + e1
           : esc(UI.timeAgo(r.set.t)) + e1}</span></span>
-        <span class="mrow-r"><span class="mrow-w">${esc(setLabel(r.set, r.ex))}</span></span>
+        <span class="mrow-r"><span class="mrow-w">${esc(setLabel(r.set, r.ex, true))}</span></span>
       </button>`;
     };
     const head = (left, right) =>
@@ -913,9 +922,9 @@
       return `<div class="vs-row">
         <div class="vs-row-n"><span>${esc(r.ex.name)}</span><em>${aWins ? esc(A.name) + ' ahead' : bWins ? esc(B.name) + ' ahead' : 'tied'}</em></div>
         ${Charts.vsBar(
-        { value: r.ex.metric === 'time' ? (r.set.s || 0) : Store.toDisplay(r.set.w), sub: r.ex.metric === 'weight' ? '×' + r.set.r : '' },
-        { value: o.ex.metric === 'time' ? (o.set.s || 0) : Store.toDisplay(o.set.w), sub: o.ex.metric === 'weight' ? '×' + o.set.r : '' },
-        v => String(Store.round(v, 1)))}
+        { value: r.ex.metric === 'time' ? (r.set.s || 0) : Store.toDisplay(r.set.w), sub: r.ex.metric === 'weight' ? '× ' + r.set.r : '' },
+        { value: o.ex.metric === 'time' ? (o.set.s || 0) : Store.toDisplay(o.set.w), sub: o.ex.metric === 'weight' ? '× ' + o.set.r : '' },
+        v => Store.round(v, 1) + (r.ex.metric === 'time' ? 's' : r.ex.metric === 'reps' && !r.set.w ? '' : ' ' + Store.unit()))}
       </div>`;
     }).join('') : `<div class="card">${empty('No shared machines yet', 'Once you both log the same machine it shows up here.', 'dumb')}</div>`;
   });

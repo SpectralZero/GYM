@@ -71,15 +71,32 @@ function build(pid, weeks, strength) {
   }
 }
 
-build(A.id, 9, 1);
-build(B.id, 9, 0.86);
+/* --empty: two people, onboarded, but nothing logged — for checking empty states */
+const EMPTY = process.argv.includes('--empty');
+if (!EMPTY) {
+  build(A.id, 9, 1);
+  build(B.id, 9, 0.86);
+}
 Store.setActive(A.id);
 
-[['leg-press', '12'], ['chest-press-machine', '3'], ['lat-pulldown', '7'], ['pec-deck', '5'],
-['leg-extension', '14'], ['seated-cable-row', '9'], ['shoulder-press-machine', '2']]
-  .forEach(([id, num]) => Store.setMeta(id, { num }));
-Store.setMeta('leg-press', { num: '12', note: 'Seat position 3, feet high on the plate.' });
-['leg-press', 'chest-press-machine', 'lat-pulldown', 'hip-thrust-machine'].forEach(id => Store.toggleFav(id));
+if (!EMPTY) {
+  [['leg-press', '12'], ['chest-press-machine', '3'], ['lat-pulldown', '7'], ['pec-deck', '5'],
+  ['leg-extension', '14'], ['seated-cable-row', '9'], ['shoulder-press-machine', '2']]
+    .forEach(([id, num]) => Store.setMeta(id, { num }));
+  Store.setMeta('leg-press', { num: '12', note: 'Seat position 3, feet high on the plate.' });
+  ['leg-press', 'chest-press-machine', 'lat-pulldown', 'hip-thrust-machine'].forEach(id => Store.toggleFav(id));
+}
+/* --live: leave a workout in progress, for reviewing the live workout screen */
+if (process.argv.includes('--live')) {
+  const open = { id: Store.uid(), p: A.id, start: Date.now() - 22 * 60000, end: null, title: '', u: Date.now() };
+  Store.getDoc().sessions.push(open);
+  [['chest-press-machine', 55, 12], ['chest-press-machine', 55, 10], ['pec-deck', 50, 12], ['triceps-pushdown', 35, 12]]
+    .forEach(([x, w, r], i) => {
+      const st = Store.addSet({ x, w, r, sid: open.id, p: A.id });
+      st.t = open.start + i * 5 * 60000; st.u = st.t;
+    });
+}
+
 Store.setSetting('restSec', 90);
 Store.save();
 Store.flush();                     /* writes are debounced — force it out before reading */
@@ -95,9 +112,10 @@ localStorage.setItem('il.device', ${JSON.stringify(device)});
 `;
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
   .replace('<script src="js/machines.js"></script>', inject + '<script src="js/machines.js"></script>');
-fs.writeFileSync(path.join(ROOT, '_preview.html'), html);
+const out = EMPTY ? '_empty.html' : process.argv.includes('--live') ? '_live.html' : '_preview.html';
+fs.writeFileSync(path.join(ROOT, out), html);
 
 const t = Store.totals(A.id);
 console.log('seeded ' + Store.getDoc().sets.length + ' sets across 2 people');
 console.log('  ' + A.name + ': ' + t.sets + ' sets, ' + t.workouts + ' workouts, ' + Store.dayCount(A.id) + ' training days');
-console.log('wrote _preview.html — open http://localhost:8080/_preview.html');
+console.log('wrote ' + out + ' — open http://localhost:8080/' + out);
