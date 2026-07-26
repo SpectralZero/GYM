@@ -279,12 +279,17 @@
   const routes = {};
   let current = { name: '', params: {} };
   function register(name, fn) { routes[name] = fn; }
+  const routeNames = () => Object.keys(routes);
+  const hasRoute = name => Object.prototype.hasOwnProperty.call(routes, name);
   function parseHash() {
     const h = (location.hash || '').replace(/^#\/?/, '');
     if (!h) return { name: 'home', params: {} };
     const parts = h.split('/').map(decodeURIComponent);
     if (parts[0] === 'x') return { name: 'exercise', params: { id: parts[1] } };
     if (parts[0] === 'session') return { name: 'session', params: { id: parts[1] } };
+    /* the Versus tab shipped briefly as #/compare — keep old bookmarks and
+       any lastRoute already saved on a device working */
+    if (parts[0] === 'compare') return { name: 'versus', params: {} };
     return { name: parts[0] || 'home', params: { arg: parts[1] } };
   }
   function go(hash, replace) {
@@ -359,7 +364,7 @@
     haptic, beep, toast, prBurst,
     artHtml, machineCard, machineRow, lastLine, avatar, dayCard, dayHeading, setSummary,
     sheet, closeSheet, confirmSheet, rest,
-    register, go, render, parseHash, currentRoute,
+    register, go, render, parseHash, currentRoute, routeNames, hasRoute,
     stepper, bindSteppers, tiles, section, empty
   };
 })(window);

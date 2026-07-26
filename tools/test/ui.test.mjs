@@ -402,6 +402,40 @@ await nav('/session/' + finished.id);
 T('session detail renders', view().indexOf('What you did') > -1);
 T('shows the machines from that day', (view().match(/class="wo-ex"/g) || []).length >= 3);
 
+console.log('\nO2. the tab bar itself (clicked, not navigated by hand)');
+/* The Versus tab once carried data-route="compare" while the screen was
+   registered as "versus": clicking it fell through to Home with no tab lit.
+   Driving UI.go() directly could never catch that, so drive the real buttons. */
+const tabs = Array.from(doc.querySelectorAll('.tab'));
+T('five tabs', tabs.length === 5, tabs.length);
+const unknown = tabs.map(t => t.dataset.route).filter(r => !UI.hasRoute(r));
+T('every tab points at a registered screen', unknown.length === 0, unknown.join(', '));
+const expect = {
+  home: /streak|Ready to lift|Good /,
+  machines: /Search machines/,
+  workout: /Workout|Elapsed/,
+  progress: /Progress/,
+  versus: /Versus/
+};
+for (const tab of tabs) {
+  const r = tab.dataset.route;
+  tab.click();
+  await sleep(30);
+  UI.render();
+  const h = view();
+  T('tab "' + r + '" opens its own screen', expect[r] ? expect[r].test(h) : false, h.slice(0, 90));
+  T('tab "' + r + '" ends up at #/' + r, window.location.hash === '#/' + r, window.location.hash);
+  if (r !== 'workout') {
+    const lit = tabs.filter(t => t.classList.contains('on')).map(t => t.dataset.route);
+    T('tab "' + r + '" is the highlighted one', lit.length === 1 && lit[0] === r, lit.join(',') || 'none lit');
+  }
+}
+
+/* a device that saved the old path must still land somewhere sensible */
+await nav('/compare');
+T('legacy #/compare still reaches Versus', /Versus/.test(view()));
+T('legacy path lights the Versus tab', tabs.filter(t => t.classList.contains('on')).map(t => t.dataset.route).join() === 'versus');
+
 console.log('\nP. render hygiene across every route');
 const routes = ['/home', '/machines', '/machines/legs', '/x/leg-press', '/x/plank', '/x/treadmill', '/x/pull-up',
   '/x/hip-adduction', '/x/assisted-pullup', '/workout', '/progress', '/versus', '/settings',
