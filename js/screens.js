@@ -728,7 +728,13 @@
       ${section('Bodyweight', { label: '+ Log', id: 'bwAdd' })}
       <div class="chartcard">${bw.length > 1 ? '<div id="pBw"></div>' : `<p class="dim" style="padding:6px 4px">${bw.length ? 'Latest: ' + esc(Store.fmtW(bw[bw.length - 1].kg)) : 'Track your bodyweight to see it against your lifts.'}</p>`}</div>
 
-      ${section('Personal records · ' + prs.length + ' machines')}
+      ${section('Personal records · ' + prs.length)}
+      <span class="seg seg-wide" id="prMode">
+        <button data-m="date">By day</button>
+        <button data-m="muscle">By muscle</button>
+        <button data-m="best">Heaviest</button>
+      </span>
+      <p class="dim" id="prHint" style="margin:9px 2px 2px"></p>
       <div id="pPrs"></div>`;
 
     Charts.columns($('#pVol', host), {
@@ -742,12 +748,8 @@
         yFmt: v => String(Store.round(v, 1)), height: 120
       });
     }
-    $('#pPrs', host).innerHTML = prs.map(r => `
-      <button class="mrow card-tap" data-x="${esc(r.ex.id)}">
-        <span class="mrow-art">${UI.artHtml(r.ex)}</span>
-        <span class="mrow-b"><span class="mrow-n">${esc(r.ex.name)}</span><span class="mrow-s">${r.days} session${r.days === 1 ? '' : 's'} · ${esc(UI.timeAgo(r.last))}</span></span>
-        <span class="mrow-r"><span class="mrow-w">${esc(setLabel(r.set, r.ex))}</span></span>
-      </button>`).join('');
+    renderPRs(host, prs);
+    $$('#prMode button', host).forEach(b => b.onclick = () => { prMode = b.dataset.m; renderPRs(host, prs); });
 
     $('#bwAdd', host).onclick = () => {
       const last = bw.length ? Store.toDisplay(bw[bw.length - 1].kg) : 80;
@@ -763,6 +765,61 @@
         });
     };
   });
+
+  /* ---- personal records, grouped ----
+     A flat list sorted by "last trained" buries records: a machine you used
+     yesterday shows above a record you actually set yesterday. These group by
+     the day the record was SET, which is the thing being listed. */
+  let prMode = 'date';
+  function renderPRs(host, prs) {
+    const el = $('#pPrs', host);
+    const hint = $('#prHint', host);
+    $$('#prMode button', host).forEach(b => b.classList.toggle('on', b.dataset.m === prMode));
+    if (!prs.length) { el.innerHTML = empty('No records yet', 'Log a set and your bests appear here.'); return; }
+
+    const row = r => {
+      const e1 = r.ex.metric === 'weight' && r.set.r > 1
+        ? ' · ' + Store.fmtW(Store.e1rm(r.set.w, r.set.r), false) + ' ' + Store.unit() + ' est. 1RM' : '';
+      return `<button class="mrow card-tap" data-x="${esc(r.ex.id)}">
+        <span class="mrow-art">${UI.artHtml(r.ex)}</span>
+        <span class="mrow-b"><span class="mrow-n">${esc(r.ex.name)}</span>
+          <span class="mrow-s">${prMode === 'date' ? r.days + ' session' + (r.days === 1 ? '' : 's') + e1
+          : esc(UI.timeAgo(r.set.t)) + e1}</span></span>
+        <span class="mrow-r"><span class="mrow-w">${esc(setLabel(r.set, r.ex))}</span></span>
+      </button>`;
+    };
+    const head = (left, right) =>
+      `<div class="histday-h" style="margin-top:16px"><span class="histday-d">${esc(left)}</span><span class="histday-m">${esc(right)}</span></div>`;
+
+    if (prMode === 'muscle') {
+      hint.textContent = 'Your best on every machine, by body part';
+      el.innerHTML = Machines.GROUPS.map(g => {
+        const list = prs.filter(r => r.ex.group === g.id).sort((a, b) => a.ex.name.localeCompare(b.ex.name));
+        if (!list.length) return '';
+        return head(g.name, list.length + ' machine' + (list.length === 1 ? '' : 's')) + list.map(row).join('');
+      }).join('');
+      return;
+    }
+    if (prMode === 'best') {
+      hint.textContent = 'Heaviest first, across every machine';
+      const weighted = prs.filter(r => r.ex.metric === 'weight' && r.set.w > 0).sort((a, b) => b.set.w - a.set.w);
+      const other = prs.filter(r => !(r.ex.metric === 'weight' && r.set.w > 0));
+      /* head() escapes, so pass the raw ampersand — pre-escaping double-escapes */
+      el.innerHTML = weighted.map(row).join('') +
+        (other.length ? head('Reps & time', other.length + ' record' + (other.length === 1 ? '' : 's')) + other.map(row).join('') : '');
+      return;
+    }
+
+    /* by day the record was set, newest first */
+    hint.textContent = 'Grouped by the day you set them';
+    const byDay = {};
+    prs.forEach(r => { const k = Store.dayKey(r.set.t); (byDay[k] || (byDay[k] = [])).push(r); });
+    el.innerHTML = Object.keys(byDay).sort().reverse().map(k => {
+      const list = byDay[k].sort((a, b) => b.set.t - a.set.t);
+      return head(UI.dayHeading(list[0].set.t), list.length + ' record' + (list.length === 1 ? '' : 's')) +
+        list.map(row).join('');
+    }).join('');
+  }
 
   /* =========================================================
      VERSUS — you against your friend

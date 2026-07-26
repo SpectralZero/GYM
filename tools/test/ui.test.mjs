@@ -211,6 +211,23 @@ T('weekly volume chart', $('#pVol') && $('#pVol').querySelector('svg') !== null)
 T('heatmap cells rendered', $('#pHeat') && $('#pHeat').querySelectorAll('.heat i').length > 100, $('#pHeat') ? $('#pHeat').querySelectorAll('.heat i').length : 0);
 T('muscle balance bars', (view().match(/class="bal-r"/g) || []).length === Machines.GROUPS.length - 1);
 T('PR list rendered', $('#pPrs') && $('#pPrs').querySelectorAll('.mrow').length >= 4);
+T('PRs grouped by day by default', $('#pPrs').querySelectorAll('.histday-h').length >= 1, $('#pPrs').querySelectorAll('.histday-h').length);
+T('day headings name the day', /record/.test($('#pPrs').innerHTML));
+T('grouping switcher offered', doc.querySelectorAll('#prMode button').length === 3);
+T('"By day" is the active mode', doc.querySelector('#prMode button.on').dataset.m === 'date');
+const prCount = $('#pPrs').querySelectorAll('.mrow').length;
+doc.querySelector('#prMode [data-m="muscle"]').click();
+T('by-muscle regroups', $('#pPrs').innerHTML.indexOf('Legs') > -1 || $('#pPrs').innerHTML.indexOf('Chest') > -1);
+T('by-muscle keeps every record', $('#pPrs').querySelectorAll('.mrow').length === prCount, $('#pPrs').querySelectorAll('.mrow').length + ' vs ' + prCount);
+doc.querySelector('#prMode [data-m="best"]').click();
+const heavy = Store.prList().filter(r => r.ex.metric === 'weight' && r.set.w > 0).sort((a, b) => b.set.w - a.set.w);
+const names = Array.from($('#pPrs').querySelectorAll('.mrow-n')).map(e => e.textContent);
+T('heaviest record is listed first', !heavy.length || names[0] === heavy[0].ex.name, names[0]);
+T('weighted records sorted by weight', names.slice(0, heavy.length).join('|') === heavy.map(r => r.ex.name).join('|'), names.slice(0, heavy.length).join('|'));
+T('reps/time records pushed into their own group', !heavy.length || /Reps &amp; time|Reps & time/.test($('#pPrs').innerHTML));
+T('heaviest keeps every record', $('#pPrs').querySelectorAll('.mrow').length === prCount);
+doc.querySelector('#prMode [data-m="date"]').click();
+T('switching back restores day grouping', $('#pPrs').querySelectorAll('.histday-h').length >= 1);
 /* Safari below 16.2 has no color-mix, and an SVG fill has no fallback,
    so every mark colour must be a concrete value */
 const volSvg = $('#pVol').innerHTML, heatHtml = $('#pHeat').innerHTML;
