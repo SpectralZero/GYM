@@ -509,13 +509,15 @@
   }
 
   /* ---- full history ---- */
+  let xHistShown = 12, xHistFor = null;
   function renderHistory(host, ex) {
     const el = $('#histWrap', host);
     const all = Store.sets({ x: ex.id, p: Store.activeId() });
     if (!all.length) { el.innerHTML = ''; return; }
     const days = Store.groupByDay(all);
     const keys = Object.keys(days).sort().reverse();
-    const shown = keys.slice(0, 12);
+    if (xHistFor !== ex.id) { xHistFor = ex.id; xHistShown = 12; }
+    const shown = keys.slice(0, xHistShown);
     el.innerHTML = section('History', { note: keys.length + ' sessions' }) + '<div class="hist">' + shown.map(k => {
       const list = days[k];
       const best = Store.bestSet(list, ex);
@@ -525,7 +527,12 @@
           <span class="histday-m">${list.length} sets${vol ? ' · ' + esc(Store.fmtVol(vol)) : ''}</span></div>
         <div class="setpills">${list.map(s => `<span class="setpill ${s.id === best.id ? 'best' : ''}">${esc(setLabel(s, ex))}</span>`).join('')}</div>
       </div>`;
-    }).join('') + '</div>' + (keys.length > shown.length ? `<p class="dim" style="text-align:center;margin-top:12px">+ ${keys.length - shown.length} older sessions</p>` : '');
+    }).join('') + '</div>' +
+      (keys.length > shown.length
+        ? `<button class="btn btn-wide" style="margin-top:12px" id="xHistMore">Show ${Math.min(12, keys.length - shown.length)} older sessions</button>`
+        : keys.length > 12 ? `<p class="dim" style="text-align:center;margin-top:12px">That's all ${keys.length} sessions.</p>` : '');
+    const hm = $('#xHistMore', el);
+    if (hm) hm.onclick = () => { xHistShown += 12; renderHistory(host, ex); };
   }
 
   /* ---- machine options sheet ---- */
@@ -570,7 +577,14 @@
         <button class="btn btn-primary btn-lg btn-wide" id="woStart" style="margin-top:18px">${icon('play', 20)} Start workout</button>
         <button class="btn btn-wide" style="margin-top:10px" data-href="#/machines">${icon('grid', 19)} Just log a machine</button>
         ${last ? section('Last workout') + sessionCard(last) : ''}
-        ${Store.sessions().filter(s => s.end).length > 1 ? section('Earlier') + Store.sessions().filter(s => s.end).slice(1, 8).map(sessionCard).join('') : ''}`;
+        ${(() => {
+          const done = Store.sessions().filter(s => s.end);
+          if (done.length <= 1) return '';
+          const earlier = done.slice(1, 8);
+          return section('Earlier', { href: '#/history', label: 'All ' + Store.dayCount() + ' days' }) +
+            earlier.map(sessionCard).join('') +
+            (done.length > 8 ? `<button class="btn btn-wide" style="margin-top:10px" data-href="#/history">See every training day</button>` : '');
+        })()}`;
       $('#woStart', host).onclick = () => { Store.startSession(); haptic(20); UI.render(); };
       return;
     }
@@ -744,7 +758,8 @@
         <button data-m="best">Heaviest</button>
       </span>
       <p class="dim" id="prHint" style="margin:9px 2px 2px"></p>
-      <div id="pPrs"></div>`;
+      <div id="pPrs"></div>
+      <button class="btn btn-wide" style="margin-top:12px" id="prAll" data-href="#/records" hidden>See all ${prs.length} records</button>`;
 
     Charts.columns($('#pVol', host), {
       data: wv.map(w => ({ label: w.label, value: Math.round(Store.unit() === 'lb' ? w.volume / 0.45359237 : w.volume), sub: w.label + ' · ' + w.sets + ' sets · ' + w.days + ' days' })),
@@ -757,8 +772,16 @@
         yFmt: v => String(Store.round(v, 1)), height: 120
       });
     }
-    renderPRs(host, prs);
-    $$('#prMode button', host).forEach(b => b.onclick = () => { prMode = b.dataset.m; renderPRs(host, prs); });
+    /* cap it here — training daily means hundreds of records eventually, and
+       this tab is a dashboard, not the archive. The archive is /records. */
+    const PR_PREVIEW = 10;
+    const draw = () => {
+      const r = renderPRs(host, prs, { limit: PR_PREVIEW });
+      const btn = $('#prAll', host);
+      if (btn) btn.hidden = r.total <= r.drawn;
+    };
+    draw();
+    $$('#prMode button', host).forEach(b => b.onclick = () => { prMode = b.dataset.m; draw(); });
 
     $('#bwAdd', host).onclick = () => {
       const last = bw.length ? Store.toDisplay(bw[bw.length - 1].kg) : 80;
@@ -780,10 +803,18 @@
      yesterday shows above a record you actually set yesterday. These group by
      the day the record was SET, which is the thing being listed. */
   let prMode = 'date';
-  function renderPRs(host, prs) {
+  /* opts: {limit} caps how many ROWS are drawn (not groups) so the Progress tab
+     stays scannable once you have hundreds of records; {q} filters by name. */
+  function renderPRs(host, prs, opts) {
+    opts = opts || {};
     const el = $('#pPrs', host);
     const hint = $('#prHint', host);
     $$('#prMode button', host).forEach(b => b.classList.toggle('on', b.dataset.m === prMode));
+    if (opts.q) {
+      const q = opts.q.trim().toLowerCase();
+      if (q) prs = prs.filter(r => r.ex.name.toLowerCase().indexOf(q) > -1);
+      if (!prs.length) { if (hint) hint.textContent = ''; el.innerHTML = empty('No machine matches that', 'Try part of the name.', 'search'); return; }
+    }
     if (!prs.length) { el.innerHTML = empty('No records yet', 'Log a set and your bests appear here.'); return; }
 
     const row = r => {
@@ -800,39 +831,82 @@
     const head = (left, right) =>
       `<div class="histday-h" style="margin-top:16px"><span class="histday-d">${esc(left)}</span><span class="histday-m">${esc(right)}</span></div>`;
 
+    /* build [{label, right, items}] for the chosen mode, then draw with a budget */
+    let groups;
     if (prMode === 'muscle') {
       hint.textContent = 'Your best on every machine, by body part';
-      el.innerHTML = Machines.GROUPS.map(g => {
-        const list = prs.filter(r => r.ex.group === g.id).sort((a, b) => a.ex.name.localeCompare(b.ex.name));
-        if (!list.length) return '';
-        return head(g.name, list.length + ' machine' + (list.length === 1 ? '' : 's')) + list.map(row).join('');
-      }).join('');
-      return;
-    }
-    if (prMode === 'best') {
+      groups = Machines.GROUPS.map(g => {
+        const items = prs.filter(r => r.ex.group === g.id).sort((a, b) => a.ex.name.localeCompare(b.ex.name));
+        return items.length ? { label: g.name, right: items.length + ' machine' + (items.length === 1 ? '' : 's'), items } : null;
+      }).filter(Boolean);
+    } else if (prMode === 'best') {
       hint.textContent = 'Heaviest first, across every machine';
       const weighted = prs.filter(r => r.ex.metric === 'weight' && r.set.w > 0).sort((a, b) => b.set.w - a.set.w);
       const other = prs.filter(r => !(r.ex.metric === 'weight' && r.set.w > 0));
+      groups = [];
+      if (weighted.length) groups.push({ label: '', right: '', items: weighted });
       /* head() escapes, so pass the raw ampersand — pre-escaping double-escapes */
-      el.innerHTML = weighted.map(row).join('') +
-        (other.length ? head('Reps & time', other.length + ' record' + (other.length === 1 ? '' : 's')) + other.map(row).join('') : '');
-      return;
+      if (other.length) groups.push({ label: 'Reps & time', right: other.length + ' record' + (other.length === 1 ? '' : 's'), items: other });
+    } else {
+      hint.textContent = 'Grouped by the day you set them';
+      const byDay = {};
+      prs.forEach(r => { const k = Store.dayKey(r.set.t); (byDay[k] || (byDay[k] = [])).push(r); });
+      groups = Object.keys(byDay).sort().reverse().map(k => {
+        const items = byDay[k].sort((a, b) => b.set.t - a.set.t);
+        return { label: UI.dayHeading(items[0].set.t), right: items.length + ' record' + (items.length === 1 ? '' : 's'), items };
+      });
     }
 
-    /* by day the record was set, newest first */
-    hint.textContent = 'Grouped by the day you set them';
-    const byDay = {};
-    prs.forEach(r => { const k = Store.dayKey(r.set.t); (byDay[k] || (byDay[k] = [])).push(r); });
-    el.innerHTML = Object.keys(byDay).sort().reverse().map(k => {
-      const list = byDay[k].sort((a, b) => b.set.t - a.set.t);
-      return head(UI.dayHeading(list[0].set.t), list.length + ' record' + (list.length === 1 ? '' : 's')) +
-        list.map(row).join('');
-    }).join('');
+    let budget = opts.limit || Infinity, out = '', drawn = 0;
+    for (const g of groups) {
+      if (budget <= 0) break;
+      const items = g.items.slice(0, budget);
+      out += (g.label ? head(g.label, g.right) : '') + items.map(row).join('');
+      budget -= items.length; drawn += items.length;
+    }
+    el.innerHTML = out;
+    return { drawn, total: prs.length };
   }
+
+  /* =========================================================
+     RECORDS — the full archive, searchable
+  ========================================================= */
+  let recQ = '';
+  UI.register('records', function (host) {
+    const prs = Store.prList();
+    if (!prs.length) {
+      host.innerHTML = `<h1 class="h1">Records</h1>
+        <div class="card" style="margin-top:14px">${empty('No records yet', 'Log a set and your best on every machine is tracked here.', 'dumb')}
+        <button class="btn btn-primary btn-wide" data-href="#/machines">Choose a machine</button></div>`;
+      return;
+    }
+    host.innerHTML = `<h1 class="h1">Records</h1>
+      <p class="dim" style="margin-top:6px">Your best set on each of ${prs.length} machines</p>
+      <div class="search" style="margin-top:14px">
+        <span class="s-ico">${icon('search', 20)}</span>
+        <input id="recQ" type="search" placeholder="Find a machine…" value="${esc(recQ)}" autocomplete="off" enterkeyhint="search">
+        <button class="s-clr" id="recX" ${recQ ? '' : 'hidden'} aria-label="Clear">${icon('x', 18)}</button>
+      </div>
+      <span class="seg seg-wide" id="prMode">
+        <button data-m="date">By day</button>
+        <button data-m="muscle">By muscle</button>
+        <button data-m="best">Heaviest</button>
+      </span>
+      <p class="dim" id="prHint" style="margin:9px 2px 2px"></p>
+      <div id="pPrs"></div>`;
+
+    const draw = () => renderPRs(host, prs, { q: recQ });
+    draw();
+    $$('#prMode button', host).forEach(b => b.onclick = () => { prMode = b.dataset.m; draw(); });
+    const q = $('#recQ', host);
+    q.oninput = () => { recQ = q.value; $('#recX', host).hidden = !recQ; draw(); };
+    $('#recX', host).onclick = () => { recQ = ''; q.value = ''; $('#recX', host).hidden = true; draw(); q.focus(); };
+  });
 
   /* =========================================================
      VERSUS — you against your friend
   ========================================================= */
+  let vsShown = 12;
   UI.register('versus', function (host) {
     const ps = Store.profiles();
     if (ps.length < 2) {
@@ -915,7 +989,8 @@
       ${section(shared.length ? 'Machine by machine · ' + shared.length : 'Machine by machine')}
       <div id="vsList"></div>`;
 
-    $('#vsList', host).innerHTML = shared.length ? shared.map(r => {
+    const VS_PAGE = 12;
+    $('#vsList', host).innerHTML = shared.length ? shared.slice(0, vsShown).map(r => {
       const o = mapB[r.ex.id];
       const aWins = Store.isBetter(r.score, o.score, r.ex);
       const bWins = Store.isBetter(o.score, r.score, r.ex);
@@ -927,6 +1002,12 @@
         v => Store.round(v, 1) + (r.ex.metric === 'time' ? 's' : r.ex.metric === 'reps' && !r.set.w ? '' : ' ' + Store.unit()))}
       </div>`;
     }).join('') : `<div class="card">${empty('No shared machines yet', 'Once you both log the same machine it shows up here.', 'dumb')}</div>`;
+
+    if (shared.length > vsShown) {
+      $('#vsList', host).insertAdjacentHTML('beforeend',
+        `<button class="btn btn-wide" style="margin-top:12px" id="vsMore">Show ${Math.min(VS_PAGE, shared.length - vsShown)} more machines</button>`);
+      $('#vsMore', host).onclick = () => { vsShown += VS_PAGE; UI.render(); };
+    }
   });
 
   /* =========================================================

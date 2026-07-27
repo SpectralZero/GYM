@@ -312,7 +312,7 @@
     Store.setDevice('lastRoute', location.hash || '#/home');
   }
   function syncTabs(name) {
-    const map = { home: 'home', history: 'home', machines: 'machines', exercise: 'machines', progress: 'progress', versus: 'versus', workout: 'workout', session: 'progress' };
+    const map = { home: 'home', history: 'home', machines: 'machines', exercise: 'machines', progress: 'progress', records: 'progress', versus: 'versus', workout: 'workout', session: 'progress' };
     const active = map[name] || '';
     $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.route === active && t.dataset.route !== 'workout'));
   }

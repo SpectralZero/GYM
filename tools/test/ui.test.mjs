@@ -453,6 +453,31 @@ await nav('/compare');
 T('legacy #/compare still reaches Versus', /Versus/.test(view()));
 T('legacy path lights the Versus tab', tabs.filter(t => t.classList.contains('on')).map(t => t.dataset.route).join() === 'versus');
 
+console.log('\nO2b. long lists must not run off the end of the screen');
+/* someone training daily accumulates hundreds of records and sessions;
+   every growing list needs either a cap with a way forward, or paging */
+await nav('/progress');
+const prRows = $('#pPrs').querySelectorAll('.mrow').length;
+T('Progress caps the record list', prRows <= 10, prRows);
+const seeAll = $('#prAll');
+T('Progress offers the full archive when capped', !!seeAll);
+T('the archive link is hidden when nothing is cut', seeAll.hidden === (Store.prList().length <= prRows), seeAll.hidden + ' rows=' + prRows + ' total=' + Store.prList().length);
+await nav('/records');
+T('records archive renders', /Records/.test(view()));
+T('archive shows everything', $('#pPrs').querySelectorAll('.mrow').length === Store.prList().length, $('#pPrs').querySelectorAll('.mrow').length);
+T('archive has a search box', !!$('#recQ'));
+$('#recQ').value = 'leg';
+$('#recQ').dispatchEvent(new window.Event('input'));
+const found = $('#pPrs').querySelectorAll('.mrow').length;
+T('search narrows the archive', found > 0 && found < Store.prList().length, found);
+T('search matches by name', /Leg Press/.test($('#pPrs').innerHTML));
+$('#recQ').value = 'zzzznotamachine';
+$('#recQ').dispatchEvent(new window.Event('input'));
+T('no match explains itself', /No machine matches/.test($('#pPrs').innerHTML));
+$('#recX').click();
+T('clearing search restores everything', $('#pPrs').querySelectorAll('.mrow').length === Store.prList().length);
+T('archive keeps the grouping switcher', doc.querySelectorAll('#prMode button').length === 3);
+
 console.log('\nO3. formatting details found in the visual pass');
 await nav('/x/treadmill');
 T('cardio machine does not print CARDIO twice', (view().match(/class="xtag">Cardio</gi) || []).length <= 1, (view().match(/class="xtag">[^<]*</gi) || []).join(' '));
@@ -475,8 +500,8 @@ await nav('/machines');
 T('cards space the unit from the number', !/\d+kg ×/.test(view()), (view().match(/\d+kg ×/) || [])[0]);
 
 console.log('\nP. render hygiene across every route');
-const routes = ['/home', '/machines', '/machines/legs', '/x/leg-press', '/x/plank', '/x/treadmill', '/x/pull-up',
-  '/x/hip-adduction', '/x/assisted-pullup', '/workout', '/progress', '/versus', '/settings',
+const routes = ['/home', '/history', '/machines', '/machines/legs', '/x/leg-press', '/x/plank', '/x/treadmill', '/x/pull-up',
+  '/x/hip-adduction', '/x/assisted-pullup', '/workout', '/progress', '/records', '/versus', '/settings',
   '/session/' + finished.id, '/x/nope-does-not-exist', '/bogus-route'];
 const dirty = [];
 for (const r of routes) {
